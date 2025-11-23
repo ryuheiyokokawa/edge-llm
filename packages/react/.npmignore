@@ -1,0 +1,40 @@
+# Source files
+src/
+*.ts
+*.tsx
+!*.d.ts
+
+# Config files
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+*.config.ts
+*.config.js
+
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+test/
+tests/
+__tests__/
+coverage/
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+.env
+.env.local
+
+# Build artifacts (keep dist/)
+*.tsbuildinfo
+.cache/
+
+# Documentation (keep README.md)
+docs/
+*.md
+!README.md
+

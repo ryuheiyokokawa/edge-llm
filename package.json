@@ -1,0 +1,38 @@
+{
+  "name": "edge-llm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Edge-first LLM tool calling framework",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "build:core": "npm run build --workspace=@edge-llm/core",
+    "build:react": "npm run build --workspace=@edge-llm/react",
+    "build:example": "npm run build --workspace=example-app",
+    "dev": "npm run dev --workspace=example-app",
+    "test": "npm run test --workspaces",
+    "test:core": "npm run test --workspace=@edge-llm/core",
+    "test:react": "npm run test --workspace=@edge-llm/react",
+    "lint": "npm run lint --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "clean": "npm run clean --workspaces && rm -rf node_modules",
+    "prepublishOnly": "npm run build",
+    "version": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/edge-llm.git"
+  },
+  "license": "MIT"
+}
