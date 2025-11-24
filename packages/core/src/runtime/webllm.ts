@@ -36,18 +36,24 @@ export class WebLLMRuntime implements Runtime {
 
     this.initPromise = (async () => {
       try {
-        console.log("[WebLLM] Initializing engine...");
+        if (this.config.debug) {
+          console.log("[WebLLM] Initializing engine...");
+        }
         const modelId = this.config.modelId || defaultConfig.modelId!;
         
         this.engine = await webllm.CreateMLCEngine(
           modelId,
           {
             initProgressCallback: (report) => {
-              console.log("[WebLLM] Progress:", report.text);
+              if (this.config.debug) {
+                console.log("[WebLLM] Progress:", report.text);
+              }
             },
           }
         );
-        console.log("[WebLLM] Engine created successfully");
+        if (this.config.debug) {
+          console.log("[WebLLM] Engine created successfully");
+        }
       } catch (error) {
         console.error("[WebLLM] Initialization failed:", error);
         this.initPromise = null;
@@ -80,7 +86,9 @@ export class WebLLMRuntime implements Runtime {
       throw new Error("Engine not initialized");
     }
 
-    console.log("[WebLLM] Chat request:", { messages, tools });
+    if (this.config.debug) {
+      console.log("[WebLLM] Chat request:", { messages, tools });
+    }
 
     // Prepare messages with system prompt if tools are available
     let finalMessages = [...messages];
@@ -124,9 +132,13 @@ export class WebLLMRuntime implements Runtime {
       max_tokens: options?.maxTokens ?? this.config.maxTokens,
     };
 
-    console.log("[WebLLM] Sending request:", requestOptions);
+    if (this.config.debug) {
+      console.log("[WebLLM] Sending request:", requestOptions);
+    }
     const response = await this.engine.chat.completions.create(requestOptions);
-    console.log("[WebLLM] Received response:", response);
+    if (this.config.debug) {
+      console.log("[WebLLM] Received response:", response);
+    }
 
     const content = response.choices[0]?.message?.content || "";
 
@@ -134,7 +146,9 @@ export class WebLLMRuntime implements Runtime {
     if (tools && tools.length > 0) {
       const json = extractJSON(content);
       if (json && json.tool && json.arguments) {
-        console.log("[WebLLM] Detected JSON tool call:", json);
+        if (this.config.debug) {
+          console.log("[WebLLM] Detected JSON tool call:", json);
+        }
         return {
           type: "tool_calls",
           calls: [

@@ -22,9 +22,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/edge-llm.git",
+    "url": "https://github.com/ryuheiyokokawa/edge-llm.git",
     "directory": "packages/core"
   },
+  "engines": {
+    "node": ">=18"
+  },
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -33,7 +37,8 @@
     "test:coverage": "jest --coverage",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
-    "clean": "rm -rf dist node_modules"
+    "clean": "rm -rf dist node_modules",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "llm",
@@ -43,7 +48,7 @@
     "transformers",
     "service-worker"
   ],
-  "author": "",
+  "author": "Ryuhei Yokokawa",
   "license": "MIT",
   "dependencies": {
     "@mlc-ai/web-llm": "^0.2.79",

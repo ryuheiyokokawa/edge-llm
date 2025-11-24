@@ -98,6 +98,7 @@ export type RuntimeStatus =
  */
 export interface RuntimeConfig {
   preferredRuntime?: RuntimeType;
+  debug?: boolean;
   fallbackStrategy?: "quality" | "speed" | "cost";
   apiKey?: string;
   apiBaseUrl?: string;

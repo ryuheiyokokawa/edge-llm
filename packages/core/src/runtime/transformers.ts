@@ -32,42 +32,56 @@ export class TransformersRuntime extends BaseRuntime {
   async initialize(config: RuntimeConfig): Promise<void> {
     this.config = config;
     this.setStatus("initializing");
-    console.log("[Transformers.js] Starting initialization...");
+    if (config.debug) {
+      console.log("[Transformers.js] Starting initialization...");
+    }
 
     // Check WASM support
     const hasWASM = RuntimeManager.checkWASMSupport();
     if (!hasWASM) {
-      console.log("[Transformers.js] WASM not available, skipping");
+      if (config.debug) {
+        console.log("[Transformers.js] WASM not available, skipping");
+      }
       throw new Error(
         "WASM not available. Transformers.js requires WASM support."
       );
     }
 
-    console.log("[Transformers.js] WASM available, proceeding...");
+    if (config.debug) {
+      console.log("[Transformers.js] WASM available, proceeding...");
+    }
 
     // Determine model name from config
     this.modelName = config.models?.transformers || this.modelName;
-    console.log("[Transformers.js] Loading model:", this.modelName);
+    if (config.debug) {
+      console.log("[Transformers.js] Loading model:", this.modelName);
+    }
 
     try {
       // Dynamically import Transformers.js to avoid issues if not available
-      console.log("[Transformers.js] Importing @xenova/transformers...");
+      if (config.debug) {
+        console.log("[Transformers.js] Importing @xenova/transformers...");
+      }
       const { pipeline, AutoTokenizer } = await import("@xenova/transformers");
 
       // Initialize tokenizer
-      console.log("[Transformers.js] Loading tokenizer...");
+      if (config.debug) {
+        console.log("[Transformers.js] Loading tokenizer...");
+      }
       this.tokenizer = await AutoTokenizer.from_pretrained(this.modelName, {
         progress_callback: (progress: {
           status: string;
           progress?: number;
         }) => {
-          console.log(
-            `[Transformers.js] Tokenizer: ${progress.status}${
-              progress.progress
-                ? ` (${(progress.progress * 100).toFixed(1)}%)`
-                : ""
-            }`
-          );
+          if (config.debug) {
+            console.log(
+              `[Transformers.js] Tokenizer: ${progress.status}${
+                progress.progress
+                  ? ` (${(progress.progress * 100).toFixed(1)}%)`
+                  : ""
+              }`
+            );
+          }
           if (progress.status === "loading") {
             this.setStatus("loading");
           }
@@ -75,28 +89,34 @@ export class TransformersRuntime extends BaseRuntime {
       });
 
       // Initialize text generation pipeline
-      console.log(
-        "[Transformers.js] Loading pipeline (this may download the model)..."
-      );
+      if (config.debug) {
+        console.log(
+          "[Transformers.js] Loading pipeline (this may download the model)..."
+        );
+      }
       this.pipeline = await pipeline("text-generation", this.modelName, {
         progress_callback: (progress: {
           status: string;
           progress?: number;
         }) => {
-          console.log(
-            `[Transformers.js] Pipeline: ${progress.status}${
-              progress.progress
-                ? ` (${(progress.progress * 100).toFixed(1)}%)`
-                : ""
-            }`
-          );
+          if (config.debug) {
+            console.log(
+              `[Transformers.js] Pipeline: ${progress.status}${
+                progress.progress
+                  ? ` (${(progress.progress * 100).toFixed(1)}%)`
+                  : ""
+              }`
+            );
+          }
           if (progress.status === "loading") {
             this.setStatus("loading");
           }
         },
       });
 
-      console.log("[Transformers.js] Pipeline loaded successfully");
+      if (config.debug) {
+        console.log("[Transformers.js] Pipeline loaded successfully");
+      }
       this.setStatus("ready");
     } catch (error) {
       this.setStatus("error");
