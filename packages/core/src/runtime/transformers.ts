@@ -103,7 +103,7 @@ export class TransformersRuntime extends BaseRuntime {
       const errorMsg = `Failed to initialize Transformers.js: ${
         error instanceof Error ? error.message : String(error)
       }`;
-      console.error("[Transformers.js]", errorMsg);
+      console.warn("[Transformers.js]", errorMsg);
       throw new Error(errorMsg);
     }
   }

@@ -63,6 +63,7 @@ export function useLLM(_options?: UseLLMOptions): UseLLMReturn {
       message:
         | string
         | Message
+        | Message[]
         | { toolResults: Array<{ tool_call_id: string; result: unknown }> },
       sendOptions?: ChatOptions
     ): Promise<ModelResponse> => {
@@ -70,25 +71,27 @@ export function useLLM(_options?: UseLLMOptions): UseLLMReturn {
         throw new Error("LLM client not initialized");
       }
 
-      // Convert string to message format
+      // Convert to message array format
       let messages: Message[];
-      if (typeof message === "string") {
+      if (Array.isArray(message)) {
+        messages = message;
+      } else if (typeof message === "string") {
         messages = [{ role: "user", content: message }];
       } else if ("toolResults" in message) {
-        // For tool results, we need to send them as tool messages
-        // The conversation history should already include the assistant's tool_call message
+        // For tool results in JSON mode, we'll just send them as user messages with the result
+        // The system prompt will handle the instruction to interpret it
         messages = message.toolResults.map(
           (tr: { tool_call_id: string; result: unknown }) => ({
-            role: "tool" as const,
-            content: JSON.stringify(tr.result),
-            tool_call_id: tr.tool_call_id,
+            role: "user", // In JSON mode, we treat tool results as user inputs for simplicity or system messages
+            content: `Tool Result: ${JSON.stringify(tr.result)}`,
           })
         );
       } else {
         messages = [message];
       }
 
-      return client.chat(messages, toolsRef.current, sendOptions);
+      // Force non-streaming
+      return client.chat(messages, toolsRef.current, { ...sendOptions, stream: false });
     },
     [client]
   );

@@ -48,11 +48,21 @@ export class RuntimeManager {
 
     console.log("[RuntimeManager] Fallback chain:", this.fallbackChain);
 
+    // Check WebGPU support for debugging
+    const hasWebGPU = await RuntimeManager.checkWebGPUSupport();
+    console.log("[RuntimeManager] WebGPU available:", hasWebGPU);
+
     for (const runtimeType of this.fallbackChain) {
       try {
         console.log(
           `[RuntimeManager] Attempting to initialize ${runtimeType}...`
         );
+        
+        if (runtimeType === "webllm" && !hasWebGPU) {
+          console.warn("[RuntimeManager] Skipping WebLLM because WebGPU is not available");
+          continue;
+        }
+
         const runtime = this.createRuntime(runtimeType);
         await runtime.initialize(this.config);
         this.currentRuntime = runtime;

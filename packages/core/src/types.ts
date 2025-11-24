@@ -101,6 +101,9 @@ export interface RuntimeConfig {
   fallbackStrategy?: "quality" | "speed" | "cost";
   apiKey?: string;
   apiBaseUrl?: string;
+  modelId?: string;
+  temperature?: number;
+  maxTokens?: number;
   models?: {
     webllm?: string;
     transformers?: string;

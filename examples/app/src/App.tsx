@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LLMProvider, useLLM } from "@edge-llm/react";
-import type { ToolDefinition, ModelResponse, ContentResponse } from "@edge-llm/core";
+import type { ToolDefinition, Message } from "@edge-llm/core";
 
 // Example tools
 const exampleTools: ToolDefinition[] = [
@@ -76,6 +76,7 @@ function ChatInterface() {
   const [messages, setMessages] = useState<
     Array<{ role: string; content: string }>
   >([]);
+  const [conversationHistory, setConversationHistory] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,144 +96,109 @@ function ChatInterface() {
     setLoading(true);
     setError(null);
 
-    // Add user message
+    // Add user message to history
+    const userMsg: Message = { role: "user", content: userMessage };
+    setConversationHistory((prev) => [...prev, userMsg]);
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
 
     try {
+      let currentHistory = [...conversationHistory, userMsg];
+      let keepGoing = true;
+      let iterations = 0;
+      const MAX_ITERATIONS = 5;
 
+      while (keepGoing && iterations < MAX_ITERATIONS) {
+        iterations++;
+        console.log(`[App] Iteration ${iterations}, sending history length: ${currentHistory.length}`);
+        
+        const response = await send(currentHistory as any);
+        console.log("[App] Received response:", response);
 
-      let response: ModelResponse = await send(userMessage, { stream: true });
-      console.log("[App] Original Response:", response);
-      let iteration = 0;
-
-      while (iteration < 2) {
-        // Handle tool calls
-        if (response.type === "tool_calls") {
-          iteration++;
-
-          // Show tool execution
-          const toolMessages = response.calls.map((call) => ({
+        if (response.type === "content") {
+          // Final answer
+          const assistantMsg: Message = { 
+            role: "assistant", 
+            content: response.text || "" 
+          };
+          setConversationHistory((prev) => [...prev, assistantMsg]);
+          setMessages((prev) => [...prev, { role: "assistant", content: response.text || "" }]);
+          keepGoing = false;
+        } else if (response.type === "tool_calls") {
+          // Handle tool calls
+          const toolCalls = response.calls;
+          const assistantMsg: Message = {
             role: "assistant",
-            content: `🔧 Calling tool: ${call.name}(${JSON.stringify(
-              call.arguments
-            )})`,
-          }));
-          setMessages((prev) => [...prev, ...toolMessages]);
-
-          // Execute tools and get results
-          // Note: Hermes models sometimes vary the tool name casing/spacing
-          // so we normalize for matching
-          const toolResults = response.calls.map((call) => {
-            const normalizedCallName = call.name.toLowerCase().replace(/[_\s-]/g, '');
-            const tool = exampleTools.find((t) => 
-              t.name.toLowerCase().replace(/[_\s-]/g, '') === normalizedCallName
-            );
-            
-            if (!tool) {
-              console.warn(`Tool not found: "${call.name}" (normalized: "${normalizedCallName}")`);
-              console.log('Available tools:', exampleTools.map(t => t.name));
-              return {
-                tool_call_id: call.id,
-                result: { error: `Tool ${call.name} not found` },
-              };
-            }
-
-            console.log(`Executing tool: ${tool.name} with args:`, call.arguments);
-            return {
-              tool_call_id: call.id,
-              result: tool.handler(call.arguments),
-            };
-          });
-
-          // Wait for all tools to complete
-          const results = await Promise.all(
-            toolResults.map(async (tr) => ({
-              tool_call_id: tr.tool_call_id,
-              result: await tr.result,
+            content: "", // JSON mode usually puts content in the message, but for history we can leave empty or put the JSON
+            tool_calls: toolCalls.map(tc => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments
             }))
-          );
-
-          // Add assistant message with tool calls to conversation history
-          // This is required for the model to understand the context
-          const assistantToolCallMessage = {
-            role: "assistant" as const,
-            content: null,
-            tool_calls: response.calls.map((call) => ({
-              id: call.id,
-              type: "function" as const,
-              function: {
-                name: call.name,
-                arguments: JSON.stringify(call.arguments),
-              },
-            })),
           };
           
-          // Build complete message history for next turn
-          const toolResultMessages = results.map((result) => ({
-            role: "tool" as const,
-            content: JSON.stringify(result.result),
-            tool_call_id: result.tool_call_id,
-          }));
+          // Add assistant message with tool calls to history
+          currentHistory.push(assistantMsg);
+          setConversationHistory((prev) => [...prev, assistantMsg]);
 
-          // Send the assistant's tool call + tool results as a single request
-          // by constructing the proper message format
-          console.log("[App] Sending tool results:", results);
-          
-          // We need to send this as a Message with the proper structure
-          // Since useLLM doesn't export Message type, we'll use the toolResults format
-          // but we should really be sending: [assistantToolCallMessage, ...toolResultMessages]
-          response = await send({ toolResults: results }, { stream: true });
-          console.log("[App] Response after tool execution:", response);
-        } else if (response.type === "content") {
-          // Handle content response
-          if (response.stream) {
-            // Handle streaming - iterate directly
-            let fullText = "";
-            const toolCalls: any[] = [];
-            
-            for await (const chunk of response.stream) {
-              console.log("[App] Stream chunk:", chunk);
-              if (typeof chunk === "string") {
-                fullText += chunk;
-                // Note: We accumulate text but don't display yet to avoid showing
-                // partial tool call JSON that will be parsed later
-              } else if (typeof chunk === "object" && chunk.type === "tool_call_chunk") {
-                toolCalls.push(chunk.tool_call);
-              }
+          // Show tool execution in UI
+          const toolCallUIMessages = toolCalls.map((call) => ({
+            role: "assistant",
+            content: `🔧 Calling tool: ${call.name}(${JSON.stringify(call.arguments)})`,
+          }));
+          setMessages((prev) => [...prev, ...toolCallUIMessages as any]);
+
+          // Execute tools
+          const toolResults = [];
+          for (const call of toolCalls) {
+            console.log(`[App] Executing tool: ${call.name}`);
+            try {
+              // Find tool
+              const tool = exampleTools.find(t => t.name === call.name);
+              if (!tool) throw new Error(`Tool ${call.name} not found`);
+
+              const result = await tool.handler(call.arguments);
+              toolResults.push({
+                tool_call_id: call.id,
+                result: result
+              });
+              setMessages((prev) => [...prev, { role: "assistant", content: `✅ Tool ${call.name} result: ${JSON.stringify(result)}` }]);
+            } catch (e) {
+              console.error(`[App] Tool execution failed:`, e);
+              const errorResult = { error: String(e) };
+              toolResults.push({
+                tool_call_id: call.id,
+                result: errorResult
+              });
+              setMessages((prev) => [...prev, { role: "assistant", content: `❌ Tool ${call.name} failed: ${JSON.stringify(errorResult)}` }]);
             }
-            
-            // After stream completes, decide what to show
-            if (toolCalls.length > 0) {
-              // We got tool calls, switch to tool handling
-              console.log("[App] Received tool calls in stream:", toolCalls);
-              console.log("[App] fullText at time of tool calls:", fullText);
-              response = {
-                type: "tool_calls",
-                calls: toolCalls,
-              };
-              continue;
-            } else if (fullText.trim()) {
-              // Only add message if we have actual text content
-              setMessages((prev) => [...prev, { role: "assistant", content: fullText }]);
-            }
-          } else {
-            // Handle complete response
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: (response as ContentResponse).text || "" },
-            ]);
           }
+
+          // Add tool results to history
+          const toolResultMessages: Message[] = toolResults.map(tr => ({
+            role: "tool",
+            content: JSON.stringify(tr.result),
+            tool_call_id: tr.tool_call_id
+          }));
           
-          // If we got here and didn't continue, we are done
-          break;
+          currentHistory.push(...toolResultMessages);
+          setConversationHistory((prev) => [...prev, ...toolResultMessages]);
+          
+          // Loop continues to send tool results back to model
+        } else {
+          keepGoing = false;
         }
       }
     } catch (err) {
+      console.error("[App] Error in chat loop:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       setError(errorMessage);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: `Error: ${errorMessage}` },
+      ]);
+      setConversationHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: "Sorry, an error occurred." }
       ]);
     } finally {
       setLoading(false);
@@ -375,7 +341,7 @@ function App() {
   return (
     <LLMProvider
       config={{
-        preferredRuntime: "auto",
+        preferredRuntime: "webllm",
         models: {
           webllm: "Hermes-2-Pro-Mistral-7B-q4f16_1-MLC",
           transformers: "Xenova/Qwen2.5-0.5B-Instruct",
