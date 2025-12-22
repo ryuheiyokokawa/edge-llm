@@ -14,6 +14,8 @@ import type {
 } from "../types.js";
 import { RuntimeManager } from "./manager.js";
 import { IndexedDBCache } from "../utils/indexeddb-cache.js";
+import { generateSystemPrompt } from "../prompt/system.js";
+import { extractJSON } from "../utils/json-parser.js";
 
 // Transformers.js types
 type TextGenerationPipeline = any;
@@ -36,6 +38,17 @@ export class TransformersRuntime extends BaseRuntime {
     this.config = config;
     this.abortController = new AbortController();
     const signal = this.abortController.signal;
+
+    // Link external signal to our internal controller
+    if (config.signal) {
+      if (config.signal.aborted) {
+        this.abortController.abort();
+      } else {
+        config.signal.addEventListener("abort", () => {
+          this.abortController?.abort();
+        });
+      }
+    }
     
     this.setStatus("initializing");
     this.log("[Transformers.js] Starting initialization...");
@@ -49,7 +62,7 @@ export class TransformersRuntime extends BaseRuntime {
       );
     }
 
-    if (signal.aborted) return;
+    if (signal.aborted) throw new Error("Aborted");
 
     this.log("[Transformers.js] WASM available, proceeding...");
 
@@ -65,7 +78,7 @@ export class TransformersRuntime extends BaseRuntime {
       const transformers = await import("@huggingface/transformers");
       ({ pipeline, AutoTokenizer, env } = transformers);
 
-      if (signal.aborted) return;
+      if (signal.aborted) throw new Error("Aborted");
 
       // Configure environment if available
       if (env) {
@@ -96,7 +109,7 @@ export class TransformersRuntime extends BaseRuntime {
        throw new Error(`Import/Config failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    if (signal.aborted) return;
+    if (signal.aborted) throw new Error("Aborted");
 
     try {
       // Initialize tokenizer
@@ -104,7 +117,7 @@ export class TransformersRuntime extends BaseRuntime {
       const tokenizerOptions: any = {
         signal, // Pass abort signal
         progress_callback: (progress: any) => {
-          if (signal.aborted) return;
+          if (signal.aborted) throw new Error("Aborted");
           
           const file = progress.file || "tokenizer";
           if (progress.loaded !== undefined && progress.total !== undefined) {
@@ -138,12 +151,12 @@ export class TransformersRuntime extends BaseRuntime {
       };
       this.tokenizer = await AutoTokenizer.from_pretrained(this.modelName, tokenizerOptions);
     } catch (error) {
-       if (signal.aborted) return;
+       if (signal.aborted) throw new Error("Aborted");
        this.setStatus("error");
        throw new Error(`Tokenizer initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    if (signal.aborted) return;
+    if (signal.aborted) throw new Error("Aborted");
 
     try {
       // Initialize text generation pipeline
@@ -156,7 +169,7 @@ export class TransformersRuntime extends BaseRuntime {
         dtype: "fp32", // Switch to full precision (1.1GB) for maximum fidelity
         signal, // Pass abort signal
         progress_callback: (progress: any) => {
-          if (signal.aborted) return;
+          if (signal.aborted) throw new Error("Aborted");
 
           const file = progress.file || "model";
           if (progress.loaded !== undefined && progress.total !== undefined) {
@@ -191,12 +204,12 @@ export class TransformersRuntime extends BaseRuntime {
       this.pipeline = await pipeline("text-generation", this.modelName, pipelineOptions);
       this.log("[Transformers.js] Pipeline loaded successfully");
     } catch (error) {
-       if (signal.aborted) return;
+       if (signal.aborted) throw new Error("Aborted");
        this.setStatus("error");
        throw new Error(`Pipeline initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    if (signal.aborted) return;
+    if (signal.aborted) throw new Error("Aborted");
 
     this.setStatus("ready");
   }
@@ -223,6 +236,7 @@ export class TransformersRuntime extends BaseRuntime {
         repetition_penalty: 1.1, // Prevent character loops ($$$$$)
         do_sample: false, // Deterministic for function calling
         return_full_text: false,
+        signal: (this as any).abortController?.signal,
         ...inputs // Spread tokenized inputs
       };
 
@@ -272,15 +286,25 @@ export class TransformersRuntime extends BaseRuntime {
       };
     });
 
-    // Add required system prompt for FunctionGemma if not present
+    // Add required system prompt if not present
     // This is essential for the model to understand its function calling capabilities
     const hasSystem = chatMessages.some(m => m.role === 'developer');
     if (!hasSystem && tools.length > 0) {
+      const format = this.config?.toolCallFormat || "xml";
+      let systemContent = "";
+      
+      if (format === "xml") {
+        systemContent = `You are a model that can do function calling with the following functions. 
+Must use the EXACT format: <start_function_call>call:name{arg:<escape>val<escape>}<end_function_call>
+Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<end_function_call>`;
+      } else {
+        // Use standard JSON mode system prompt
+        systemContent = generateSystemPrompt(tools);
+      }
+
       chatMessages.unshift({
         role: 'developer',
-        content: `You are a model that can do function calling with the following functions. 
-Must use the EXACT format: <start_function_call>call:name{arg:<escape>val<escape>}<end_function_call>
-Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<end_function_call>`
+        content: systemContent
       });
     }
 
@@ -338,7 +362,24 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
   this.log("[Transformers.js] Raw output:", decoded);
 
   // Parse and filter tool calls
-  let toolCalls = this.parseToolCallsFromResponse(decoded);
+  const format = this.config?.toolCallFormat || "xml";
+  let toolCalls: ToolCall[] = [];
+
+  if (format === "xml") {
+    toolCalls = this.parseToolCallsFromResponse(decoded);
+  } else {
+    // JSON mode parsing
+    const json = extractJSON(decoded);
+    if (json && json.tool && json.arguments) {
+      toolCalls = [
+        {
+          id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+          name: json.tool,
+          arguments: json.arguments,
+        },
+      ];
+    }
+  }
   
   // Filter out unknown tools
   toolCalls = toolCalls.filter(call => tools.some(t => t.name === call.name));
@@ -427,5 +468,12 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
       this.tokenizer = null;
     }
     await super.dispose();
+  }
+
+  async clearCache(): Promise<void> {
+    this.log("[Transformers.js] Clearing IndexedDB cache...");
+    const cache = new IndexedDBCache();
+    await cache.clear();
+    this.log("[Transformers.js] Cache cleared");
   }
 }

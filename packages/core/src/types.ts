@@ -41,6 +41,11 @@ export interface ToolCall {
 }
 
 /**
+ * Tool call format
+ */
+export type ToolCallFormat = "json" | "xml";
+
+/**
  * Tool result sent back to model
  */
 export interface ToolResult {
@@ -110,6 +115,8 @@ export interface RuntimeConfig {
     transformers?: string;
     api?: string;
   };
+  toolCallFormat?: ToolCallFormat;
+  signal?: AbortSignal; // Pass an abort signal for cancellation
   performance?: {
     maxConcurrentInference?: number;
     inferenceTimeout?: number;
@@ -144,6 +151,11 @@ export interface Runtime {
    * Cleanup resources
    */
   dispose(): Promise<void>;
+
+  /**
+   * Clear persistent cache/storage
+   */
+  clearCache(): Promise<void>;
 }
 
 /**
@@ -193,7 +205,8 @@ export type ServiceWorkerMessage =
   | InitializeMessage
   | ChatMessage
   | StatusMessage
-  | ToolRegistryUpdateMessage;
+  | ToolRegistryUpdateMessage
+  | ClearCacheMessage;
 
 export interface InitializeMessage {
   type: "INITIALIZE";
@@ -218,6 +231,11 @@ export interface ToolRegistryUpdateMessage {
   tools: ToolDefinition[];
 }
 
+export interface ClearCacheMessage {
+  type: "CLEAR_CACHE";
+  requestId: string;
+}
+
 /**
  * Service worker response types
  */
@@ -225,6 +243,7 @@ export type ServiceWorkerResponse =
   | InitializeResponse
   | ChatResponse
   | StatusResponse
+  | ClearCacheResponse
   | ErrorResponse;
 
 export interface InitializeResponse {
@@ -244,6 +263,13 @@ export interface StatusResponse {
   type: "STATUS_RESPONSE";
   requestId: string;
   status: RuntimeStatus;
+}
+
+export interface ClearCacheResponse {
+  type: "CLEAR_CACHE_RESPONSE";
+  requestId: string;
+  success: boolean;
+  error?: string;
 }
 
 export interface ErrorResponse {

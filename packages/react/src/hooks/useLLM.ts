@@ -52,6 +52,11 @@ export interface UseLLMReturn {
    * Check if initialized
    */
   initialized: boolean;
+
+  /**
+   * Clear all runtime caches
+   */
+  clearCache: () => Promise<void>;
 }
 
 export function useLLM(_options?: UseLLMOptions): UseLLMReturn {
@@ -121,5 +126,6 @@ export function useLLM(_options?: UseLLMOptions): UseLLMReturn {
     unregisterTool,
     status,
     initialized,
+    clearCache: useLLMContext().clearCache,
   };
 }

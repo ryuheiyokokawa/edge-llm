@@ -40,4 +40,9 @@ export abstract class BaseRuntime implements Runtime {
     this.status = "idle";
     this.config = null;
   }
+
+  async clearCache(): Promise<void> {
+    // Default implementation does nothing
+    this.log("[BaseRuntime] clearCache not implemented for this runtime");
+  }
 }

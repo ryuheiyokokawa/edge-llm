@@ -10,6 +10,7 @@ export interface LLMContextValue {
   status: RuntimeStatus;
   config: RuntimeConfig;
   initialized: boolean;
+  clearCache: () => Promise<void>;
 }
 
 export const LLMContext = createContext<LLMContextValue | null>(null);

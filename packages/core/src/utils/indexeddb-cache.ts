@@ -93,4 +93,22 @@ export class IndexedDBCache {
       };
     });
   }
+
+  async clear(): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(this.storeName, "readwrite");
+      const store = transaction.objectStore(this.storeName);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        this.db = null; // Close connection after clear if needed? No, just resolve.
+        resolve();
+      };
+
+      request.onerror = () => {
+        reject(new Error("Failed to clear IndexedDB"));
+      };
+    });
+  }
 }

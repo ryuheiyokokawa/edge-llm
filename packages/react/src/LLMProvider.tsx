@@ -40,14 +40,23 @@ export function LLMProvider({
     let mounted = true;
 
     async function setup() {
-      // If we already have a client instance, we don't need to do anything
+      // If we already have a client instance, check if we need to re-initialize
       if (globalClient) {
         if (mounted) {
           setClient(globalClient);
-          const currentStatus = await globalClient.getStatus();
-          setStatus(currentStatus);
-          if (currentStatus === "ready") {
-            setInitialized(true);
+          
+          // Re-initialize with new config - LLMClient now handles disposal internally
+          try {
+            setStatus("initializing");
+            await globalClient.initialize(config);
+            const currentStatus = await globalClient.getStatus();
+            setStatus(currentStatus);
+            if (currentStatus === "ready") {
+              setInitialized(true);
+            }
+          } catch (error) {
+            console.error("[Edge LLM] Re-initialization error:", error);
+            setStatus("error");
           }
         }
         return;
@@ -120,27 +129,14 @@ export function LLMProvider({
       }
     }
 
-    // Only run setup if we haven't initialized yet
+    // Always call setup on mount (debounced)
     let initTimer: ReturnType<typeof setTimeout> | null = null;
     
-    if (!globalClient && !isInitializing) {
-      // Debounce initialization to handle Strict Mode double-mount
-      // This ensures we only initialize for the stable mount
-      initTimer = setTimeout(() => {
-        if (mounted) {
-          setup();
-        }
-      }, 250);
-    } else if (globalClient && !client) {
-      // If client exists but state is empty (remount), sync it
-      setClient(globalClient);
-      globalClient.getStatus().then(s => {
-        if (mounted) {
-          setStatus(s);
-          if (s === "ready") setInitialized(true);
-        }
-      });
-    }
+    initTimer = setTimeout(() => {
+      if (mounted) {
+        setup();
+      }
+    }, 250);
 
     return () => {
       mounted = false;
@@ -168,11 +164,18 @@ export function LLMProvider({
     return () => clearInterval(interval);
   }, [client]);
 
+  const clearCache = async () => {
+    if (client) {
+      await client.clearCache();
+    }
+  };
+
   const contextValue: LLMContextValue = {
     client,
     status,
     config,
     initialized,
+    clearCache,
   };
 
   return (

@@ -147,5 +147,6 @@ export function useChat() {
     error,
     status,
     initialized,
+    clearCache: useLLM().clearCache,
   };
 }

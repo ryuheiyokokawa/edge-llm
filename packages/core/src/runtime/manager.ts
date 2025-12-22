@@ -13,8 +13,10 @@ import type {
 
 export class RuntimeManager {
   private currentRuntime: Runtime | null = null;
+  private initializingRuntime: Runtime | null = null;
   private config: RuntimeConfig;
   private fallbackChain: RuntimeType[] = [];
+  private abortController: AbortController = new AbortController();
 
   constructor(config: RuntimeConfig) {
     this.config = config;
@@ -60,6 +62,11 @@ export class RuntimeManager {
     this.log("[RuntimeManager] WebGPU available:", hasWebGPU);
 
     for (const runtimeType of this.fallbackChain) {
+      if (this.abortController.signal.aborted) {
+        this.log("[RuntimeManager] Initialization aborted");
+        return;
+      }
+
       try {
         this.log(`[RuntimeManager] Attempting to initialize ${runtimeType}...`);
 
@@ -71,11 +78,30 @@ export class RuntimeManager {
         }
 
         const runtime = this.createRuntime(runtimeType);
-        await runtime.initialize(this.config);
+        this.initializingRuntime = runtime;
+        
+        // Pass parent abort signal to runtime
+        await runtime.initialize({
+          ...this.config,
+          signal: this.abortController.signal,
+        });
+
+        if (this.abortController.signal.aborted) {
+          this.log("[RuntimeManager] Successfully initialized but already aborted, disposing...");
+          await runtime.dispose();
+          this.initializingRuntime = null;
+          return;
+        }
+
         this.currentRuntime = runtime;
+        this.initializingRuntime = null;
         this.log(`[RuntimeManager] Successfully initialized ${runtimeType}`);
         return;
       } catch (error) {
+        if (this.abortController.signal.aborted) {
+          this.log("[RuntimeManager] Aborted during error handling");
+          return;
+        }
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.warn(
           `[RuntimeManager] Failed to initialize ${runtimeType}:`,
@@ -131,10 +157,38 @@ export class RuntimeManager {
    * Dispose current runtime
    */
   async dispose(): Promise<void> {
+    this.abortController.abort();
     if (this.currentRuntime) {
       await this.currentRuntime.dispose();
       this.currentRuntime = null;
     }
+    if (this.initializingRuntime) {
+      await this.initializingRuntime.dispose();
+      this.initializingRuntime = null;
+    }
+  }
+
+  /**
+   * Clear all runtime caches
+   */
+  async clearCache(): Promise<void> {
+    this.log("[RuntimeManager] Clearing all caches...");
+    
+    // 1. Clear current runtime if active
+    if (this.currentRuntime) {
+      await this.currentRuntime.clearCache();
+    }
+    
+    // 2. Proactively clear others known caches
+    // For WebLLM
+    const webllm = new WebLLMRuntime();
+    await webllm.clearCache();
+    
+    // For Transformers.js
+    const transformers = new TransformersRuntime();
+    await transformers.clearCache();
+    
+    this.log("[RuntimeManager] All caches cleared");
   }
 
   /**

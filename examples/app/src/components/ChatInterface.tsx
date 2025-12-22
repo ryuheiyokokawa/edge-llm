@@ -11,6 +11,7 @@ export function ChatInterface() {
     error,
     status,
     initialized,
+    clearCache,
   } = useChat();
 
   return (
@@ -19,6 +20,22 @@ export function ChatInterface() {
 
       <div style={styles.status}>
         <strong>Status:</strong> {status} {initialized ? "✓" : "..."}
+        <button 
+          onClick={async () => {
+            if (confirm("Clear all model caches? This will require re-downloading model files.")) {
+              try {
+                await clearCache();
+                alert("Caches cleared. The page will now reload.");
+                window.location.reload();
+              } catch (e) {
+                alert("Failed to clear cache: " + e);
+              }
+            }
+          }}
+          style={styles.clearButton}
+        >
+          Clear Models Cache
+        </button>
       </div>
 
       {error && (
@@ -111,6 +128,18 @@ const styles = {
     padding: "0.5rem",
     background: "#f0f0f0",
     borderRadius: "4px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  clearButton: {
+    padding: "0.25rem 0.5rem",
+    fontSize: "0.8rem",
+    background: "#ff5252",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
   },
   error: {
     marginBottom: "1rem",

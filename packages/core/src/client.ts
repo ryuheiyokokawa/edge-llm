@@ -122,17 +122,47 @@ export class LLMClient {
     switch (message.type) {
       case "INITIALIZE":
         try {
-          if (!this.runtimeManager) {
-            this.log("[LLMClient] Creating RuntimeManager...");
-            this.runtimeManager = new RuntimeManager(message.config);
-            this.log("[LLMClient] Initializing RuntimeManager...");
-            await this.runtimeManager.initialize();
-            this.log("[LLMClient] RuntimeManager initialized successfully");
+          // 1. Create the new manager first
+          const nextManager = new RuntimeManager(message.config);
+          
+          // 2. Clear out the old one
+          if (this.runtimeManager) {
+            this.log("[LLMClient] Disposing existing RuntimeManager and clearing its cache to free quota...");
+            try {
+              // Proactively clear cache to ensure the new runtime has space
+              await this.runtimeManager.clearCache();
+            } catch (e) {
+              console.warn("[LLMClient] Failed to clear cache during switch:", e);
+            }
+            await this.runtimeManager.dispose();
+            this.runtimeManager = null;
           }
+
+          // 3. Mark the new one as current
+          this.runtimeManager = nextManager;
+          
+          this.log("[LLMClient] Initializing RuntimeManager...");
+          await nextManager.initialize();
+          
+          // 4. Double check if we were replaced while initializing
+          if (this.runtimeManager !== nextManager) {
+            this.log("[LLMClient] Initialization complete but manager was already replaced. Disposing this one...");
+            await nextManager.dispose();
+            return { type: "INITIALIZE_RESPONSE", success: true };
+          }
+          
+          this.log("[LLMClient] RuntimeManager initialized successfully");
           return { type: "INITIALIZE_RESPONSE", success: true };
         } catch (error) {
           const errorMsg =
             error instanceof Error ? error.message : String(error);
+          
+          // If it was an abort error, we don't necessarily want to log it as a failure
+          if (errorMsg === "Aborted") {
+            this.log("[LLMClient] Initialization aborted by a newer request");
+            return { type: "INITIALIZE_RESPONSE", success: true }; // Still return success so caller knows it was intentional
+          }
+
           console.error(
             "[LLMClient] Direct execution initialization failed:",
             errorMsg
@@ -141,6 +171,25 @@ export class LLMClient {
             type: "INITIALIZE_RESPONSE",
             success: false,
             error: errorMsg,
+          };
+        }
+
+      case "CLEAR_CACHE":
+        try {
+          if (this.runtimeManager) {
+            await this.runtimeManager.clearCache();
+          } else {
+            // Even if no manager, we can clear known caches
+            const tempManager = new RuntimeManager({});
+            await tempManager.clearCache();
+          }
+          return { type: "CLEAR_CACHE_RESPONSE", requestId: message.requestId, success: true };
+        } catch (error) {
+          return {
+            type: "CLEAR_CACHE_RESPONSE",
+            requestId: message.requestId,
+            success: false,
+            error: String(error),
           };
         }
 
@@ -292,6 +341,27 @@ export class LLMClient {
 
     if (response.type === "STATUS_RESPONSE") {
       return response.status;
+    } else {
+      throw new Error("Unexpected response type");
+    }
+  }
+
+  /**
+   * Clear all runtime caches
+   */
+  async clearCache(): Promise<void> {
+    await this.serviceWorkerReady;
+    const requestId = `clear-${++this.requestIdCounter}`;
+
+    const response = await this.sendMessage({
+      type: "CLEAR_CACHE",
+      requestId,
+    });
+
+    if (response.type === "CLEAR_CACHE_RESPONSE") {
+      if (!response.success) {
+        throw new Error(response.error || "Failed to clear cache");
+      }
     } else {
       throw new Error("Unexpected response type");
     }

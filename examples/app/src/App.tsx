@@ -37,6 +37,7 @@ function App() {
         key={runtime} // Force re-initialization when runtime changes
         config={{
           preferredRuntime: runtime,
+          toolCallFormat: runtime === "transformers" ? "xml" : "xml", // Use XML for both for now, or just leave as config
           debug: true,
           models: {
             webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
