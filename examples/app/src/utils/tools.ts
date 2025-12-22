@@ -10,7 +10,7 @@ export const exampleTools: ToolDefinition[] = [
         expression: {
           type: "string",
           description:
-            "Mathematical expression to evaluate (e.g., '2+2', '10*5')",
+            "Mathematical expression to evaluate",
         },
       },
       required: ["expression"],

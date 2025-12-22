@@ -13,6 +13,7 @@ import type {
   ToolCall,
 } from "../types.js";
 import { RuntimeManager } from "./manager.js";
+import { IndexedDBCache } from "../utils/indexeddb-cache.js";
 
 // Transformers.js types
 type TextGenerationPipeline = any;
@@ -70,11 +71,17 @@ export class TransformersRuntime extends BaseRuntime {
       if (env) {
         this.log("[Transformers.js] Configuring environment...");
         env.allowLocalModels = false;
-        env.useBrowserCache = true; // Re-enable cache for performance
+        env.allowRemoteModels = true; // Explicitly allow remote models for initial download
+        
+        // Use our custom IndexedDB cache to bypass Cache API limitations
+        env.useBrowserCache = false;
+        env.useCustomCache = true;
+        (env as any).customCache = new IndexedDBCache();
         
         this.log("[Transformers.js] Env config:", {
           allowLocalModels: env.allowLocalModels,
-          useBrowserCache: env.useBrowserCache,
+          allowRemoteModels: env.allowRemoteModels,
+          useCustomCache: env.useCustomCache,
         });
       }
     } catch (error) {
@@ -139,6 +146,7 @@ export class TransformersRuntime extends BaseRuntime {
       this.lastProgressMap.clear(); // Reset for pipeline
       const pipelineOptions: any = {
         // device: "wasm", // Removed to allow WebGPU (auto-detect)
+        dtype: "fp32", // Switch to full precision (1.1GB) for maximum fidelity
         signal, // Pass abort signal
         progress_callback: (progress: any) => {
           if (signal.aborted) return;
@@ -205,6 +213,7 @@ export class TransformersRuntime extends BaseRuntime {
       const generationOptions: any = {
         max_new_tokens: options?.maxTokens || 512,
         temperature: options?.temperature ?? 0.0, // Function calling usually needs low temp
+        repetition_penalty: 1.1, // Prevent character loops ($$$$$)
         do_sample: false, // Deterministic for function calling
         return_full_text: false,
         ...inputs // Spread tokenized inputs
@@ -243,8 +252,6 @@ export class TransformersRuntime extends BaseRuntime {
     // Convert messages to chat format
     const chatMessages = messages.map((msg) => {
       if (msg.role === "tool") {
-        // FunctionGemma expects tool outputs. Let's try 'tool' role first.
-        // If the template doesn't support it, we might need a manual fallback.
         return {
           role: "tool",
           tool_call_id: msg.tool_call_id,
@@ -258,23 +265,48 @@ export class TransformersRuntime extends BaseRuntime {
       };
     });
 
+    // Add required system prompt for FunctionGemma if not present
+    // This is essential for the model to understand its function calling capabilities
+    const hasSystem = chatMessages.some(m => m.role === 'developer');
+    if (!hasSystem && tools.length > 0) {
+      chatMessages.unshift({
+        role: 'developer',
+        content: `You are a model that can do function calling with the following functions. 
+Must use the EXACT format: <start_function_call>call:name{arg:<escape>val<escape>}<end_function_call>
+Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<end_function_call>`
+      });
+    }
+
     // Use apply_chat_template with tools
     if (this.tokenizer?.apply_chat_template) {
       try {
-        return this.tokenizer.apply_chat_template(chatMessages, {
+        // Log tools being sent to template
+        if (this.config?.debug) {
+          this.log("[Transformers.js] Tools for template:", JSON.stringify(functionGemmaTools, null, 2));
+        }
+
+        const formatted = this.tokenizer.apply_chat_template(chatMessages, {
           tools: functionGemmaTools.length > 0 ? functionGemmaTools : undefined,
           tokenize: true,
           add_generation_prompt: true,
           return_dict: true,
         });
-      } catch (error) {
-        console.warn("[Transformers.js] Chat template failed:", error);
-        throw error;
-      }
-    }
 
-    throw new Error("Tokenizer does not support apply_chat_template");
+      // Log the decoded prompt for debugging
+      if (this.config?.debug && (formatted as any).input_ids) {
+        const decodedPrompt = this.tokenizer.decode((formatted as any).input_ids, { skip_special_tokens: false });
+        this.log("[Transformers.js] Full decoded prompt:\n", decodedPrompt);
+      }
+
+      return formatted;
+    } catch (error) {
+      console.warn("[Transformers.js] Chat template failed:", error);
+      throw error;
+    }
   }
+
+  throw new Error("Tokenizer does not support apply_chat_template");
+}
 
   /**
    * Handle complete (non-streaming) response
@@ -291,29 +323,32 @@ export class TransformersRuntime extends BaseRuntime {
     const output = await this.pipeline.model.generate({ ...inputs, ...options });
     
     // Decode
-    const decoded = this.tokenizer.decode(output.slice(0, [inputs.input_ids.dims[1], null]), { skip_special_tokens: false });
+  const decoded = this.tokenizer.decode(output.slice(0, [inputs.input_ids.dims[1], null]), { skip_special_tokens: false });
 
-    this.log("[Transformers.js] Raw output:", decoded);
+  this.log("[Transformers.js] Raw output:", decoded);
 
-    // Parse tool calls
-    const toolCalls = this.parseToolCallsFromResponse(decoded);
+  // Parse tool calls
+  const toolCalls = this.parseToolCallsFromResponse(decoded);
 
-    if (toolCalls.length > 0) {
-      this.log("[Transformers.js] Detected tool calls:", toolCalls);
-      return {
-        type: "tool_calls",
-        calls: toolCalls,
-      } as ToolCallsResponse;
-    }
-
-    // Clean up special tokens for text response
-    const cleanText = decoded.replace(/<\|.*?\|>/g, "").trim();
-
+  if (toolCalls.length > 0) {
+    this.log("[Transformers.js] Detected tool calls:", toolCalls);
     return {
-      type: "content",
-      text: cleanText,
-    } as ContentResponse;
+      type: "tool_calls",
+      calls: toolCalls,
+    } as ToolCallsResponse;
   }
+
+  // Clean up special tokens for text response
+  // We strip all angle-bracketed tokens like <end_of_turn>, <bos>, <|im_end|>, etc.
+  const cleanText = decoded.replace(/<[^>]+>/g, "").trim();
+
+  this.log("[Transformers.js] Cleaned text:", cleanText);
+
+  return {
+    type: "content",
+    text: cleanText,
+  } as ContentResponse;
+}
 
   /**
    * Parse tool calls from model response (FunctionGemma format)
@@ -324,15 +359,15 @@ export class TransformersRuntime extends BaseRuntime {
     const toolCalls: ToolCall[] = [];
 
     // FunctionGemma format: <start_function_call>call:name{args}<end_function_call>
-    // Regex to capture name and args
-    const functionCallPattern = /<start_function_call>call:([^{]+)\{(.*?)\}<end_function_call>/g;
+    // Robust regex: allows optional 'call:', handles internal spaces/newlines, ignores 'error' hallucinations
+    const functionCallPattern = /<start_function_call>(?:call:)?([a-zA-Z0-9_-]+)\{(.*?)\}<end_function_call>/gs;
     
     let match;
     while ((match = functionCallPattern.exec(response)) !== null) {
-      const toolName = match[1];
-      let argsString = match[2]; // e.g. location:<escape>London<escape>
+      const toolName = match[1]?.trim();
+      let argsString = match[2]?.trim();
 
-      if (!toolName || argsString === undefined) continue;
+      if (!toolName || toolName === 'error' || argsString === undefined) continue;
 
       // Clean up args: FunctionGemma uses <escape>...<escape> for strings sometimes?
       // Or just standard JSON-like but without quotes on keys?

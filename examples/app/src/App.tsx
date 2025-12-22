@@ -26,7 +26,7 @@ function App() {
               onChange={(e) => setRuntime(e.target.value as any)}
               style={{ marginLeft: "0.5rem", padding: "0.25rem", borderRadius: "4px" }}
             >
-              <option value="transformers">Transformers.js (Qwen 1.5)</option>
+              <option value="transformers">Transformers.js (FunctionGemma)</option>
               <option value="webllm">WebLLM (Llama 3)</option>
             </select>
           </label>
