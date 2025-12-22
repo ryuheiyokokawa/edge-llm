@@ -2,7 +2,7 @@
  * Unit tests for LLMProvider component
  */
 import { render, screen, waitFor, act } from "@testing-library/react";
-import { LLMProvider } from "../LLMProvider";
+import { LLMProvider, resetGlobalClient } from "../LLMProvider";
 import { useLLMContext } from "../context";
 
 // Mock @edge-llm/core
@@ -34,6 +34,7 @@ describe("LLMProvider", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    resetGlobalClient();
     
     // Default successful mock behavior
     mockInitialize.mockResolvedValue(undefined);
@@ -73,16 +74,12 @@ describe("LLMProvider", () => {
       </LLMProvider>
     );
 
+    // Run the debounce timer
+    await act(async () => {
+      jest.advanceTimersByTime(300);
+    });
+
     // Wait for initialization to complete
-    await act(async () => {
-      await Promise.resolve(); // Flush microtasks
-    });
-
-    // Wait for initialization
-    await act(async () => {
-      await Promise.resolve(); // Flush microtasks
-    });
-
     await waitFor(() => {
       expect(mockInitialize).toHaveBeenCalled();
     });
@@ -109,8 +106,9 @@ describe("LLMProvider", () => {
       </LLMProvider>
     );
 
+    // Run the debounce timer
     await act(async () => {
-      await Promise.resolve();
+      jest.advanceTimersByTime(300);
     });
 
     await waitFor(() => {
@@ -131,8 +129,9 @@ describe("LLMProvider", () => {
       </LLMProvider>
     );
 
+    // Run the debounce timer
     await act(async () => {
-      await Promise.resolve();
+      jest.advanceTimersByTime(300);
     });
 
     await waitFor(() => {
@@ -149,7 +148,7 @@ describe("LLMProvider", () => {
 
     // Wait for async setup
     await act(async () => {
-      await Promise.resolve();
+      jest.advanceTimersByTime(300);
     });
 
     // After useEffect runs, client should be set
@@ -166,7 +165,7 @@ describe("LLMProvider", () => {
     );
 
     await act(async () => {
-      await Promise.resolve();
+      jest.advanceTimersByTime(300);
     });
 
     // Wait for client to be created

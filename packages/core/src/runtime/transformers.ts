@@ -74,9 +74,16 @@ export class TransformersRuntime extends BaseRuntime {
         env.allowRemoteModels = true; // Explicitly allow remote models for initial download
         
         // Use our custom IndexedDB cache to bypass Cache API limitations
-        env.useBrowserCache = false;
-        env.useCustomCache = true;
-        (env as any).customCache = new IndexedDBCache();
+        // Only if we are in a browser environment with IndexedDB support
+        if (typeof indexedDB !== 'undefined') {
+          env.useBrowserCache = false;
+          env.useCustomCache = true;
+          (env as any).customCache = new IndexedDBCache();
+        } else {
+          // In Node/Tests, stick to defaults or disable browser cache
+          env.useBrowserCache = false;
+          env.useCustomCache = false;
+        }
         
         this.log("[Transformers.js] Env config:", {
           allowLocalModels: env.allowLocalModels,
@@ -221,7 +228,7 @@ export class TransformersRuntime extends BaseRuntime {
 
       // FunctionGemma doesn't support streaming well with tools in this setup yet
       // so we default to complete response
-      return this.handleCompleteResponse(inputs, generationOptions);
+      return this.handleCompleteResponse(inputs, generationOptions, tools);
       
     } catch (error) {
       throw new Error(
@@ -313,7 +320,8 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
    */
   private async handleCompleteResponse(
     inputs: any,
-    options: any
+    options: any,
+    tools: ToolDefinition[]
   ): Promise<ModelResponse> {
     if (!this.pipeline || !this.tokenizer) {
       throw new Error("Pipeline not initialized");
@@ -322,13 +330,18 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
     // Generate
     const output = await this.pipeline.model.generate({ ...inputs, ...options });
     
-    // Decode
-  const decoded = this.tokenizer.decode(output.slice(0, [inputs.input_ids.dims[1], null]), { skip_special_tokens: false });
+    // Decode - handle offset for prompt tokens
+    // Fallback: if dims are missing (mocked tests), just decode everything
+    const offset = inputs.input_ids?.dims?.[1] || 0;
+    const decoded = this.tokenizer.decode(output.slice(0, [offset, null]), { skip_special_tokens: false });
 
   this.log("[Transformers.js] Raw output:", decoded);
 
-  // Parse tool calls
-  const toolCalls = this.parseToolCallsFromResponse(decoded);
+  // Parse and filter tool calls
+  let toolCalls = this.parseToolCallsFromResponse(decoded);
+  
+  // Filter out unknown tools
+  toolCalls = toolCalls.filter(call => tools.some(t => t.name === call.name));
 
   if (toolCalls.length > 0) {
     this.log("[Transformers.js] Detected tool calls:", toolCalls);

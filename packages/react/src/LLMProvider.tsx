@@ -18,6 +18,14 @@ export interface LLMProviderProps {
 let globalClient: LLMClient | null = null;
 let isInitializing = false; // Synchronous lock to prevent races
 
+/**
+ * Reset global client (internal use for testing)
+ */
+export function resetGlobalClient() {
+  globalClient = null;
+  isInitializing = false;
+}
+
 export function LLMProvider({
   config = {},
   serviceWorkerPath = "/sw.js",

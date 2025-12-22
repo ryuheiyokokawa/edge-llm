@@ -5,7 +5,7 @@
 import { TransformersRuntime } from "../runtime/transformers.js";
 import type { Message, ToolDefinition } from "../types.js";
 
-// Mock @xenova/transformers
+// Mock @huggingface/transformers
 const mockPipeline = jest.fn();
 const mockAutoTokenizer = {
   from_pretrained: jest.fn(),
@@ -15,7 +15,7 @@ const mockEnv = {
   useBrowserCache: false,
 };
 
-jest.mock("@xenova/transformers", () => ({
+jest.mock("@huggingface/transformers", () => ({
   pipeline: (...args: any[]) => mockPipeline(...args),
   AutoTokenizer: {
     from_pretrained: (...args: any[]) => mockAutoTokenizer.from_pretrained(...args),
@@ -47,20 +47,24 @@ describe("TransformersRuntime", () => {
     // Setup default successful mocks
     mockAutoTokenizer.from_pretrained.mockResolvedValue({
       apply_chat_template: jest.fn().mockReturnValue("formatted prompt"),
+      decode: jest.fn().mockReturnValue("Hello, I am an AI assistant."),
     });
     
-    // The pipeline function returns a callable pipeline object
-    // When called with text, it returns the generation result
-    const mockPipelineInstance = jest.fn().mockResolvedValue([{
-      generated_text: "Hello, I am an AI assistant.",
-    }]);
+    // The pipeline function returns a mock structure with model.generate
+    const mockPipelineInstance = {
+      model: {
+        generate: jest.fn().mockResolvedValue({
+          slice: jest.fn().mockReturnValue([1, 2, 3]) // mock tokens
+        })
+      }
+    };
     mockPipeline.mockResolvedValue(mockPipelineInstance);
   });
 
   describe("constructor", () => {
     it("should set default model name", () => {
       const runtime = new TransformersRuntime();
-      expect((runtime as any).modelName).toBe("Xenova/Qwen2.5-0.5B-Instruct");
+      expect((runtime as any).modelName).toBe("onnx-community/functiongemma-270m-it-ONNX");
     });
   });
 
@@ -88,7 +92,7 @@ describe("TransformersRuntime", () => {
       await runtime.initialize({});
       
       expect(mockAutoTokenizer.from_pretrained).toHaveBeenCalledWith(
-        "Xenova/Qwen2.5-0.5B-Instruct",
+        "onnx-community/functiongemma-270m-it-ONNX",
         expect.any(Object)
       );
     });
@@ -121,7 +125,7 @@ describe("TransformersRuntime", () => {
       await runtime.initialize({});
       
       expect(mockEnv.allowLocalModels).toBe(false);
-      expect(mockEnv.useBrowserCache).toBe(true);
+      expect(mockEnv.useBrowserCache).toBe(false);
     });
   });
 
@@ -138,9 +142,11 @@ describe("TransformersRuntime", () => {
     });
 
     it("should format messages and generate response", async () => {
-      // Set up custom mock before initialize
-      const mockPipelineInstance = jest.fn().mockResolvedValue([{ generated_text: "Hello!" }]);
-      mockPipeline.mockResolvedValue(mockPipelineInstance);
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue("Hello!"),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
       
       await runtime.initialize({});
       
@@ -153,27 +159,27 @@ describe("TransformersRuntime", () => {
       }
     });
 
-    it("should detect and parse tool calls from JSON response", async () => {
-      // Set up custom mock before initialize
-      const mockPipelineInstance = jest.fn().mockResolvedValue([{
-        generated_text: '{"tool": "calculate", "arguments": {"expression": "2+2"}}',
-      }]);
-      mockPipeline.mockResolvedValue(mockPipelineInstance);
+    it("should detect and parse tool calls from FunctionGemma format", async () => {
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue('<start_function_call>call:calculate{expression:<escape>2+2<escape>}<end_function_call>'),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
       
       await runtime.initialize({});
-
+ 
       const tools: ToolDefinition[] = [{
         name: "calculate",
         description: "Calculate math",
         parameters: { type: "object", properties: {} },
         handler: async () => ({}),
       }];
-
+ 
       const response = await runtime.chat(
         [{ role: "user", content: "What is 2+2?" }],
         tools
       );
-
+ 
       expect(response.type).toBe("tool_calls");
       if (response.type === "tool_calls" && response.calls.length > 0) {
         expect(response.calls[0]?.name).toBe("calculate");
@@ -182,34 +188,35 @@ describe("TransformersRuntime", () => {
     });
 
     it("should return content if no tool call detected", async () => {
-      // Set up custom mock before initialize
-      const mockPipelineInstance = jest.fn().mockResolvedValue([{
-        generated_text: "I cannot help with that.",
-      }]);
-      mockPipeline.mockResolvedValue(mockPipelineInstance);
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue("I cannot help with that."),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
       
       await runtime.initialize({});
-
+ 
       const tools: ToolDefinition[] = [{
         name: "calculate",
         description: "Calculate math",
         parameters: { type: "object", properties: {} },
         handler: async () => ({}),
       }];
-
+ 
       const response = await runtime.chat(
         [{ role: "user", content: "Tell me a joke" }],
         tools
       );
-
+ 
       expect(response.type).toBe("content");
     });
 
     it("should include tool descriptions in prompt when tools provided", async () => {
-      const mockApplyTemplate = jest.fn().mockReturnValue("formatted");
-      mockAutoTokenizer.from_pretrained.mockResolvedValue({
-        apply_chat_template: mockApplyTemplate,
-      });
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue("formatted"),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
 
       // Re-initialize to get the new tokenizer
       await runtime.initialize({});
@@ -227,13 +234,18 @@ describe("TransformersRuntime", () => {
 
       await runtime.chat([{ role: "user", content: "What's the weather?" }], tools);
 
-      // Check that apply_chat_template was called with a system message
-      expect(mockApplyTemplate).toHaveBeenCalled();
-      const callArgs = mockApplyTemplate.mock.calls[0][0];
-      const systemMsg = callArgs.find((m: any) => m.role === "system");
-      expect(systemMsg).toBeDefined();
-      expect(systemMsg.content).toContain("getWeather");
-      expect(systemMsg.content).toContain("Get weather for a city");
+      // Check that apply_chat_template was called with a developer message
+      expect(mockTokenizer.apply_chat_template).toHaveBeenCalled();
+      const callArgs = mockTokenizer.apply_chat_template.mock.calls[0][0];
+      const templateTools = mockTokenizer.apply_chat_template.mock.calls[0][1].tools;
+      
+      const devMsg = callArgs.find((m: any) => m.role === "developer");
+      expect(devMsg).toBeDefined();
+      expect(devMsg.content).toContain("function calling");
+      
+      // Verification that tools are passed to template
+      expect(templateTools).toBeDefined();
+      expect(templateTools[0].function.name).toBe("getWeather");
     });
   });
 
@@ -242,23 +254,24 @@ describe("TransformersRuntime", () => {
     // so we don't use a beforeEach with initialize here
 
     it("should parse tool call embedded in text", async () => {
-      const mockPipelineInstance = jest.fn().mockResolvedValue([{
-        generated_text: 'Sure, let me calculate that. {"tool": "calculate", "arguments": {"expression": "5*5"}}',
-      }]);
-      mockPipeline.mockResolvedValue(mockPipelineInstance);
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue('Sure, let me calculate that. <start_function_call>call:calculate{expression:<escape>5*5<escape>}<end_function_call>'),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
       
       // Initialize after setting up the mock
       await runtime.initialize({});
-
+ 
       const tools: ToolDefinition[] = [{
         name: "calculate",
         description: "Calculate",
         parameters: { type: "object", properties: {} },
         handler: async () => ({}),
       }];
-
+ 
       const response = await runtime.chat([{ role: "user", content: "5*5?" }], tools);
-
+ 
       expect(response.type).toBe("tool_calls");
       if (response.type === "tool_calls" && response.calls.length > 0) {
         expect(response.calls[0]?.name).toBe("calculate");
@@ -266,45 +279,47 @@ describe("TransformersRuntime", () => {
     });
 
     it("should ignore unknown tools", async () => {
-      const mockPipelineInstance = jest.fn().mockResolvedValue([{
-        generated_text: '{"tool": "unknownTool", "arguments": {}}',
-      }]);
-      mockPipeline.mockResolvedValue(mockPipelineInstance);
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue('<start_function_call>call:unknownTool{arg:1}<end_function_call>'),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
       
       // Initialize after setting up the mock
       await runtime.initialize({});
-
+ 
       const tools: ToolDefinition[] = [{
         name: "calculate",
         description: "Calculate",
         parameters: { type: "object", properties: {} },
         handler: async () => ({}),
       }];
-
+ 
       const response = await runtime.chat([{ role: "user", content: "Test" }], tools);
-
+ 
       // Should return as content since the tool wasn't found
       expect(response.type).toBe("content");
     });
-
+ 
     it("should handle malformed JSON gracefully", async () => {
-      const mockPipelineInstance = jest.fn().mockResolvedValue([{
-        generated_text: '{"tool": "calculate", "arguments": {invalid json}',
-      }]);
-      mockPipeline.mockResolvedValue(mockPipelineInstance);
+      const mockTokenizer = {
+        apply_chat_template: jest.fn().mockReturnValue({ input_ids: { dims: [1, 1] } }),
+        decode: jest.fn().mockReturnValue('<start_function_call>call:calculate{expression:{invalid}}<end_function_call>'),
+      };
+      mockAutoTokenizer.from_pretrained.mockResolvedValue(mockTokenizer);
       
       // Initialize after setting up the mock
       await runtime.initialize({});
-
+ 
       const tools: ToolDefinition[] = [{
         name: "calculate",
         description: "Calculate",
         parameters: { type: "object", properties: {} },
         handler: async () => ({}),
       }];
-
+ 
       const response = await runtime.chat([{ role: "user", content: "Test" }], tools);
-
+ 
       // Should return as content since JSON is invalid
       expect(response.type).toBe("content");
     });

@@ -142,7 +142,7 @@ describe("useLLM", () => {
       });
 
       expect(caughtError).not.toBeNull();
-      expect(caughtError?.message).toBe("LLM client not initialized");
+      expect((caughtError as any)?.message).toBe("LLM client not initialized");
     });
 
     it("should call client.chat with message", async () => {

@@ -31,14 +31,16 @@ export class RuntimeManager {
     const preferred = this.config.preferredRuntime || "auto";
 
     if (preferred === "auto") {
-      // Auto-detect: WebGPU -> WASM
-      this.fallbackChain = ["webllm", "transformers"];
+      // Auto-detect: WebGPU -> WASM -> API
+      this.fallbackChain = ["webllm", "transformers", "api"];
     } else {
       // Use preferred, then fallback based on strategy
       this.fallbackChain = [preferred];
 
       if (preferred === "webllm") {
-        this.fallbackChain.push("transformers");
+        this.fallbackChain.push("api", "transformers");
+      } else if (preferred === "transformers") {
+        this.fallbackChain.push("api");
       }
     }
   }
