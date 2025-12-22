@@ -19,6 +19,9 @@ export default {
       },
     ],
   },
+  transformIgnorePatterns: [
+    "node_modules/(?!(@mlc-ai/web-llm|@huggingface/transformers)/)"
+  ],
   setupFilesAfterEnv: ["<rootDir>/src/test/setup.ts"],
   testMatch: [
     "**/__tests__/**/*.test.{ts,tsx}",

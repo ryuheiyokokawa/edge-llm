@@ -1,66 +1,119 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+/**
+ * Unit tests for ChatInterface component
+ */
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { ChatInterface } from "../ChatInterface";
-import * as useChatHook from "../../hooks/useChat";
+import { useChat } from "../../hooks/useChat";
 
-// Mock useChat
-const mockHandleSend = jest.fn();
-const mockSetInput = jest.fn();
-
-jest.mock("../../hooks/useChat", () => ({
-  useChat: jest.fn(),
-}));
+// Mock the useChat hook
+jest.mock("../../hooks/useChat");
+const mockUseChat = useChat as jest.MockedFunction<typeof useChat>;
 
 describe("ChatInterface", () => {
+  const defaultMockValue = {
+    messages: [],
+    input: "",
+    setInput: jest.fn(),
+    handleSend: jest.fn(),
+    loading: false,
+    error: null,
+    status: "ready" as const,
+    initialized: true,
+    clearCache: jest.fn(),
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
-    (useChatHook.useChat as jest.Mock).mockReturnValue({
-      messages: [],
-      input: "",
-      setInput: mockSetInput,
-      handleSend: mockHandleSend,
-      loading: false,
-      error: null,
-      status: "ready",
-      initialized: true,
-    });
+    mockUseChat.mockReturnValue(defaultMockValue);
   });
 
-  it("should render status and empty state", () => {
+  it("should render welcome message when no messages exist", () => {
     render(<ChatInterface />);
-    expect(screen.getByText(/Status:/)).toBeInTheDocument();
-    expect(screen.getByText(/Start a conversation!/)).toBeInTheDocument();
+    expect(screen.getByText("Start a conversation! Try asking:")).toBeInTheDocument();
   });
 
   it("should render messages", () => {
-    (useChatHook.useChat as jest.Mock).mockReturnValue({
-      ...useChatHook.useChat(),
+    mockUseChat.mockReturnValue({
+      ...defaultMockValue,
       messages: [
         { role: "user", content: "Hello" },
-        { role: "assistant", content: "Hi there" },
+        { role: "assistant", content: "Hi there!" },
       ],
     });
 
     render(<ChatInterface />);
     expect(screen.getByText("Hello")).toBeInTheDocument();
-    expect(screen.getByText("Hi there")).toBeInTheDocument();
+    expect(screen.getByText("Hi there!")).toBeInTheDocument();
   });
 
   it("should handle input change", () => {
     render(<ChatInterface />);
-    const input = screen.getByPlaceholderText(/Type your message/i);
-    fireEvent.change(input, { target: { value: "New message" } });
-    expect(mockSetInput).toHaveBeenCalledWith("New message");
+    const input = screen.getByPlaceholderText("Type your message...");
+    fireEvent.change(input, { target: { value: "test message" } });
+    expect(defaultMockValue.setInput).toHaveBeenCalledWith("test message");
   });
 
   it("should call handleSend on button click", () => {
-    (useChatHook.useChat as jest.Mock).mockReturnValue({
-      ...useChatHook.useChat(),
-      input: "Hello",
+    mockUseChat.mockReturnValue({
+      ...defaultMockValue,
+      input: "test",
     });
 
     render(<ChatInterface />);
-    const button = screen.getByRole("button", { name: /Send/i });
-    fireEvent.click(button);
-    expect(mockHandleSend).toHaveBeenCalled();
+    const sendButton = screen.getByText("Send");
+    fireEvent.click(sendButton);
+    expect(defaultMockValue.handleSend).toHaveBeenCalled();
+  });
+
+  it("should show loading state", () => {
+    mockUseChat.mockReturnValue({
+      ...defaultMockValue,
+      loading: true,
+    });
+
+    render(<ChatInterface />);
+    expect(screen.getByText("Thinking...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Type your message...")).toBeDisabled();
+  });
+
+  it("should show error message", () => {
+    mockUseChat.mockReturnValue({
+      ...defaultMockValue,
+      error: "Something went wrong",
+    });
+
+    render(<ChatInterface />);
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+  });
+
+  it("should call clearCache with confirmation", async () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+    
+    render(<ChatInterface />);
+    const clearButton = screen.getByText("Clear Models Cache");
+    
+    await act(async () => {
+      fireEvent.click(clearButton);
+    });
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(defaultMockValue.clearCache).toHaveBeenCalled();
+    
+    confirmSpy.mockRestore();
+  });
+
+  it("should not call clearCache if confirmation is cancelled", async () => {
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
+    
+    render(<ChatInterface />);
+    const clearButton = screen.getByText("Clear Models Cache");
+    
+    await act(async () => {
+      fireEvent.click(clearButton);
+    });
+
+    expect(defaultMockValue.clearCache).not.toHaveBeenCalled();
+    
+    confirmSpy.mockRestore();
   });
 });

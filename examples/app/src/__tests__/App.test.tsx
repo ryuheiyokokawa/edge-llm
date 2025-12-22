@@ -6,9 +6,9 @@ import App from "../App";
 
 // Mock the LLMProvider from @edge-llm/react
 jest.mock("@edge-llm/react", () => ({
-  LLMProvider: ({ children }: { children: any }) => (
+  LLMProvider: jest.fn(({ children }) => (
     <div data-testid="llm-provider">{children}</div>
-  ),
+  )),
   useLLM: () => ({
     send: jest.fn(),
     registerTool: jest.fn(),
@@ -18,6 +18,8 @@ jest.mock("@edge-llm/react", () => ({
     initialized: true,
   }),
 }));
+
+import { LLMProvider } from "@edge-llm/react";
 
 // Mock ChatInterface to simplify App tests
 jest.mock("../components/ChatInterface", () => ({
@@ -40,5 +42,34 @@ describe("App", () => {
     });
 
     expect(screen.getByTestId("chat-interface")).toBeInTheDocument();
+  });
+
+  it("should switch runtime and update config", async () => {
+    render(<App />);
+    
+    // Default should be transformers
+    expect(LLMProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ preferredRuntime: "transformers" })
+      }),
+      expect.anything()
+    );
+
+    // Switch to webllm
+    const select = screen.getByRole("combobox");
+    await act(async () => {
+      render(<App />); // Re-render to trigger state change? No, fire event.
+    });
+
+    // Actually use fireEvent or userEvent
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(select, { target: { value: "webllm" } });
+
+    expect(LLMProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ preferredRuntime: "webllm" })
+      }),
+      expect.anything()
+    );
   });
 });
