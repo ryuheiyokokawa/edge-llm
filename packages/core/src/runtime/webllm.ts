@@ -30,7 +30,7 @@ export class WebLLMRuntime implements Runtime {
 
   async initialize(config: RuntimeConfig): Promise<void> {
     if (this.initPromise) return this.initPromise;
-    
+
     // Update config with passed values
     this.config = { ...this.config, ...config };
 
@@ -40,17 +40,14 @@ export class WebLLMRuntime implements Runtime {
           console.log("[WebLLM] Initializing engine...");
         }
         const modelId = this.config.modelId || defaultConfig.modelId!;
-        
-        this.engine = await webllm.CreateMLCEngine(
-          modelId,
-          {
-            initProgressCallback: (report) => {
-              if (this.config.debug) {
-                console.log("[WebLLM] Progress:", report.text);
-              }
-            },
-          }
-        );
+
+        this.engine = await webllm.CreateMLCEngine(modelId, {
+          initProgressCallback: (report) => {
+            if (this.config.debug) {
+              console.log("[WebLLM] Progress:", report.text);
+            }
+          },
+        });
         if (this.config.debug) {
           console.log("[WebLLM] Engine created successfully");
         }
@@ -95,13 +92,13 @@ export class WebLLMRuntime implements Runtime {
     if (tools && tools.length > 0) {
       const systemPrompt = generateSystemPrompt(tools);
       // Check if there is already a system message
-      const systemIndex = finalMessages.findIndex(m => m.role === "system");
+      const systemIndex = finalMessages.findIndex((m) => m.role === "system");
       if (systemIndex >= 0) {
         const existingSystemMsg = finalMessages[systemIndex];
         if (existingSystemMsg) {
           finalMessages[systemIndex] = {
             ...existingSystemMsg,
-            content: existingSystemMsg.content + "\n\n" + systemPrompt
+            content: existingSystemMsg.content + "\n\n" + systemPrompt,
           };
         }
       } else {
@@ -110,20 +107,21 @@ export class WebLLMRuntime implements Runtime {
     }
 
     // Convert messages to WebLLM format
-    const webllmMessages: webllm.ChatCompletionMessageParam[] = finalMessages.map((m) => {
-      const role = m.role;
-      if (role === "user" || role === "system" || role === "assistant") {
+    const webllmMessages: webllm.ChatCompletionMessageParam[] =
+      finalMessages.map((m) => {
+        const role = m.role;
+        if (role === "user" || role === "system" || role === "assistant") {
+          return {
+            role: role,
+            content: m.content || "",
+          };
+        }
+        // Map tool messages to user messages for JSON mode simplicity
         return {
-          role: role,
-          content: m.content || "",
+          role: "user",
+          content: `[Tool Result] ${m.content}`,
         };
-      }
-      // Map tool messages to user messages for JSON mode simplicity
-      return {
-        role: "user",
-        content: `[Tool Result] ${m.content}`,
-      };
-    });
+      });
 
     const requestOptions: webllm.ChatCompletionRequestNonStreaming = {
       stream: false, // Force non-streaming

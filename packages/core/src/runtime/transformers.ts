@@ -11,7 +11,6 @@ import type {
   ToolCallsResponse,
   ContentResponse,
   ToolCall,
-  ToolCallChunk,
 } from "../types.js";
 import { RuntimeManager } from "./manager.js";
 
@@ -25,107 +24,166 @@ export class TransformersRuntime extends BaseRuntime {
 
   constructor() {
     super();
-    // Default model, can be overridden by config
-    this.modelName = "Xenova/Qwen2.5-0.5B-Instruct";
+    // Default model: FunctionGemma (specialized for tool calling)
+    this.modelName = "onnx-community/functiongemma-270m-it-ONNX";
   }
+
+  private lastProgressMap = new Map<string, number>();
+  private abortController: AbortController | null = null;
 
   async initialize(config: RuntimeConfig): Promise<void> {
     this.config = config;
+    this.abortController = new AbortController();
+    const signal = this.abortController.signal;
+    
     this.setStatus("initializing");
-    if (config.debug) {
-      console.log("[Transformers.js] Starting initialization...");
-    }
+    this.log("[Transformers.js] Starting initialization...");
 
     // Check WASM support
     const hasWASM = RuntimeManager.checkWASMSupport();
     if (!hasWASM) {
-      if (config.debug) {
-        console.log("[Transformers.js] WASM not available, skipping");
-      }
+      this.log("[Transformers.js] WASM not available, skipping");
       throw new Error(
         "WASM not available. Transformers.js requires WASM support."
       );
     }
 
-    if (config.debug) {
-      console.log("[Transformers.js] WASM available, proceeding...");
-    }
+    if (signal.aborted) return;
+
+    this.log("[Transformers.js] WASM available, proceeding...");
 
     // Determine model name from config
     this.modelName = config.models?.transformers || this.modelName;
-    if (config.debug) {
-      console.log("[Transformers.js] Loading model:", this.modelName);
-    }
+    this.log("[Transformers.js] Loading model:", this.modelName);
+
+    let pipeline, AutoTokenizer, env;
 
     try {
       // Dynamically import Transformers.js to avoid issues if not available
-      if (config.debug) {
-        console.log("[Transformers.js] Importing @xenova/transformers...");
-      }
-      const { pipeline, AutoTokenizer } = await import("@xenova/transformers");
+      this.log("[Transformers.js] Importing @huggingface/transformers...");
+      const transformers = await import("@huggingface/transformers");
+      ({ pipeline, AutoTokenizer, env } = transformers);
 
-      // Initialize tokenizer
-      if (config.debug) {
-        console.log("[Transformers.js] Loading tokenizer...");
-      }
-      this.tokenizer = await AutoTokenizer.from_pretrained(this.modelName, {
-        progress_callback: (progress: {
-          status: string;
-          progress?: number;
-        }) => {
-          if (config.debug) {
-            console.log(
-              `[Transformers.js] Tokenizer: ${progress.status}${
-                progress.progress
-                  ? ` (${(progress.progress * 100).toFixed(1)}%)`
-                  : ""
-              }`
-            );
-          }
-          if (progress.status === "loading") {
-            this.setStatus("loading");
-          }
-        },
-      });
+      if (signal.aborted) return;
 
-      // Initialize text generation pipeline
-      if (config.debug) {
-        console.log(
-          "[Transformers.js] Loading pipeline (this may download the model)..."
-        );
+      // Configure environment if available
+      if (env) {
+        this.log("[Transformers.js] Configuring environment...");
+        env.allowLocalModels = false;
+        env.useBrowserCache = true; // Re-enable cache for performance
+        
+        this.log("[Transformers.js] Env config:", {
+          allowLocalModels: env.allowLocalModels,
+          useBrowserCache: env.useBrowserCache,
+        });
       }
-      this.pipeline = await pipeline("text-generation", this.modelName, {
-        progress_callback: (progress: {
-          status: string;
-          progress?: number;
-        }) => {
-          if (config.debug) {
-            console.log(
-              `[Transformers.js] Pipeline: ${progress.status}${
-                progress.progress
-                  ? ` (${(progress.progress * 100).toFixed(1)}%)`
-                  : ""
-              }`
-            );
-          }
-          if (progress.status === "loading") {
-            this.setStatus("loading");
-          }
-        },
-      });
-
-      if (config.debug) {
-        console.log("[Transformers.js] Pipeline loaded successfully");
-      }
-      this.setStatus("ready");
     } catch (error) {
-      this.setStatus("error");
-      const errorMsg = `Failed to initialize Transformers.js: ${
-        error instanceof Error ? error.message : String(error)
-      }`;
-      console.warn("[Transformers.js]", errorMsg);
-      throw new Error(errorMsg);
+       this.setStatus("error");
+       throw new Error(`Import/Config failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+
+    if (signal.aborted) return;
+
+    try {
+      // Initialize tokenizer
+      this.log("[Transformers.js] Loading tokenizer...");
+      const tokenizerOptions: any = {
+        signal, // Pass abort signal
+        progress_callback: (progress: any) => {
+          if (signal.aborted) return;
+          
+          const file = progress.file || "tokenizer";
+          if (progress.loaded !== undefined && progress.total !== undefined) {
+            const percent = Math.floor((progress.loaded / progress.total) * 100);
+            const lastPercent = this.lastProgressMap.get(file) ?? -1;
+            
+            if (percent !== lastPercent) {
+              this.lastProgressMap.set(file, percent);
+              // Only log every 5% for files to reduce noise, or 100%
+              if (percent % 5 === 0 || percent === 100) {
+                const sizeInfo = `(${(progress.loaded / 1024 / 1024).toFixed(1)}MB / ${(progress.total / 1024 / 1024).toFixed(1)}MB)`;
+                this.log(`[Transformers.js] [${file}] ${progress.status}: ${percent}% ${sizeInfo}`);
+              }
+            }
+          } else if (progress.progress !== undefined) {
+            const percent = Math.floor(progress.progress < 1 ? progress.progress * 100 : progress.progress);
+            const lastPercent = this.lastProgressMap.get(file) ?? -1;
+            
+            if (percent !== lastPercent) {
+              this.lastProgressMap.set(file, percent);
+              this.log(`[Transformers.js] [${file}] ${progress.status}: ${percent}%`);
+            }
+          } else if (progress.status === "initiate" || progress.status === "download" || progress.status === "done") {
+            this.log(`[Transformers.js] [${file}] ${progress.status}`);
+          }
+
+          if (progress.status === "loading") {
+            this.setStatus("loading");
+          }
+        },
+      };
+      this.tokenizer = await AutoTokenizer.from_pretrained(this.modelName, tokenizerOptions);
+    } catch (error) {
+       if (signal.aborted) return;
+       this.setStatus("error");
+       throw new Error(`Tokenizer initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (signal.aborted) return;
+
+    try {
+      // Initialize text generation pipeline
+      this.log(
+        "[Transformers.js] Loading pipeline (this may download the model)..."
+      );
+      this.lastProgressMap.clear(); // Reset for pipeline
+      const pipelineOptions: any = {
+        // device: "wasm", // Removed to allow WebGPU (auto-detect)
+        signal, // Pass abort signal
+        progress_callback: (progress: any) => {
+          if (signal.aborted) return;
+
+          const file = progress.file || "model";
+          if (progress.loaded !== undefined && progress.total !== undefined) {
+            const percent = Math.floor((progress.loaded / progress.total) * 100);
+            const lastPercent = this.lastProgressMap.get(file) ?? -1;
+
+            if (percent !== lastPercent) {
+              this.lastProgressMap.set(file, percent);
+              // Only log every 5% for files to reduce noise, or 100%
+              if (percent % 5 === 0 || percent === 100) {
+                const sizeInfo = `(${(progress.loaded / 1024 / 1024).toFixed(1)}MB / ${(progress.total / 1024 / 1024).toFixed(1)}MB)`;
+                this.log(`[Transformers.js] [${file}] ${progress.status}: ${percent}% ${sizeInfo}`);
+              }
+            }
+          } else if (progress.progress !== undefined) {
+            const percent = Math.floor(progress.progress < 1 ? progress.progress * 100 : progress.progress);
+            const lastPercent = this.lastProgressMap.get(file) ?? -1;
+
+            if (percent !== lastPercent) {
+              this.lastProgressMap.set(file, percent);
+              this.log(`[Transformers.js] [${file}] ${progress.status}: ${percent}%`);
+            }
+          } else if (progress.status === "initiate" || progress.status === "download" || progress.status === "done") {
+            this.log(`[Transformers.js] [${file}] ${progress.status}`);
+          }
+
+          if (progress.status === "loading") {
+            this.setStatus("loading");
+          }
+        },
+      };
+      this.pipeline = await pipeline("text-generation", this.modelName, pipelineOptions);
+      this.log("[Transformers.js] Pipeline loaded successfully");
+    } catch (error) {
+       if (signal.aborted) return;
+       this.setStatus("error");
+       throw new Error(`Pipeline initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (signal.aborted) return;
+
+    this.setStatus("ready");
   }
 
   async chat(
@@ -138,22 +196,24 @@ export class TransformersRuntime extends BaseRuntime {
     }
 
     try {
-      // Format messages for chat template
-      const prompt = this.formatChatPrompt(messages, tools);
+      // Format messages using chat template
+      const inputs = this.formatChatPrompt(messages, tools);
+
+      this.log("[Transformers.js] Formatted inputs:", inputs);
 
       // Generate response
       const generationOptions: any = {
         max_new_tokens: options?.maxTokens || 512,
-        temperature: options?.temperature || 0.7,
-        do_sample: options?.temperature ? options.temperature > 0 : true,
+        temperature: options?.temperature ?? 0.0, // Function calling usually needs low temp
+        do_sample: false, // Deterministic for function calling
         return_full_text: false,
+        ...inputs // Spread tokenized inputs
       };
 
-      if (options?.stream) {
-        return this.handleStreamingResponse(prompt, generationOptions);
-      } else {
-        return this.handleCompleteResponse(prompt, generationOptions, tools);
-      }
+      // FunctionGemma doesn't support streaming well with tools in this setup yet
+      // so we default to complete response
+      return this.handleCompleteResponse(inputs, generationOptions);
+      
     } catch (error) {
       throw new Error(
         `Transformers.js chat error: ${
@@ -164,251 +224,140 @@ export class TransformersRuntime extends BaseRuntime {
   }
 
   /**
-   * Format messages into a chat prompt using the model's chat template
+   * Format messages into a chat prompt using the tokenizer's chat template
    */
   private formatChatPrompt(
     messages: Message[],
     tools: ToolDefinition[]
-  ): string {
-    // Build system message with tool definitions if present
-    let systemMessage = "";
-    if (tools.length > 0) {
-      const toolsDescription = tools
-        .map(
-          (tool) =>
-            `- ${tool.name}: ${
-              tool.description
-            }\n  Parameters: ${JSON.stringify(tool.parameters)}`
-        )
-        .join("\n");
-      systemMessage = `You have access to the following tools:\n${toolsDescription}\n\nWhen you need to use a tool, respond with a JSON object in this format:\n{"tool": "tool_name", "arguments": {...}}\n\nOtherwise, respond normally.\n\n`;
-    }
-
-    // Apply chat template if available
-    if (
-      this.tokenizer &&
-      typeof this.tokenizer.apply_chat_template === "function"
-    ) {
-      try {
-        // Convert messages to format expected by chat template
-        const chatMessages = messages.map((msg) => {
-          if (msg.role === "tool") {
-            // Transform tool messages to assistant messages with content
-            return {
-              role: "assistant" as const,
-              content: msg.content,
-            };
-          }
-          return {
-            role: msg.role as "system" | "user" | "assistant",
-            content: msg.content,
-          };
-        });
-
-        // Add system message if we have tools
-        if (systemMessage) {
-          chatMessages.unshift({
-            role: "system" as const,
-            content: systemMessage,
-          });
-        }
-
-        return this.tokenizer.apply_chat_template(chatMessages, {
-          tokenize: false,
-          add_generation_prompt: true,
-        }) as string;
-      } catch (error) {
-        // Fallback to manual formatting if chat template fails
-        console.warn(
-          "Chat template application failed, using fallback:",
-          error
-        );
+  ): any {
+    // Map internal ToolDefinition to FunctionGemma schema
+    const functionGemmaTools = tools.map(tool => ({
+      type: "function",
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
       }
-    }
+    }));
 
-    // Fallback: manual prompt formatting
-    let prompt = systemMessage;
-    for (const msg of messages) {
-      if (msg.role === "system") {
-        prompt += `System: ${msg.content}\n\n`;
-      } else if (msg.role === "user") {
-        prompt += `User: ${msg.content}\n\n`;
-      } else if (msg.role === "assistant") {
-        prompt += `Assistant: ${msg.content}\n\n`;
-      } else if (msg.role === "tool") {
-        prompt += `Tool result (${msg.name || "unknown"}): ${msg.content}\n\n`;
+    // Convert messages to chat format
+    const chatMessages = messages.map((msg) => {
+      if (msg.role === "tool") {
+        // FunctionGemma expects tool outputs. Let's try 'tool' role first.
+        // If the template doesn't support it, we might need a manual fallback.
+        return {
+          role: "tool",
+          tool_call_id: msg.tool_call_id,
+          name: msg.name,
+          content: msg.content,
+        };
       }
-    }
-    prompt += "Assistant: ";
-
-    return prompt;
-  }
-
-  /**
-   * Handle streaming response
-   */
-  private async handleStreamingResponse(
-    prompt: string,
-    options: any
-  ): Promise<ContentResponse> {
-    if (!this.pipeline) {
-      throw new Error("Pipeline not initialized");
-    }
-
-    // Create async iterator for streaming
-    const stream = this.createStreamIterator(prompt, options);
-
-    return {
-      type: "content",
-      stream,
-    };
-  }
-
-  /**
-   * Create async iterable from Transformers.js generation
-   */
-  private async *createStreamIterator(
-    prompt: string,
-    options: any
-  ): AsyncIterable<string | ToolCallChunk> {
-    if (!this.pipeline) {
-      throw new Error("Pipeline not initialized");
-    }
-
-    // Transformers.js doesn't have native streaming, so we'll simulate it
-    // by generating in chunks or using a callback-based approach
-    const output = await this.pipeline(prompt, {
-      ...options,
+      return {
+        role: msg.role === "system" ? "developer" : msg.role, // FunctionGemma uses 'developer' for system
+        content: msg.content,
+      };
     });
 
-    // For now, yield the full text (Transformers.js streaming is limited)
-    // In a real implementation, we might need to use a different approach
-    const text = Array.isArray(output)
-      ? output[0]?.generated_text || ""
-      : output?.generated_text || "";
-
-    // Yield the generated text (after removing the prompt)
-    const generatedText = text.replace(prompt, "").trim();
-    
-    // Check for tool calls first
-    // In this simulated streaming, we can just parse at the end, but we should yield text first
-    // However, if the text IS a tool call, we shouldn't yield it as content.
-    
-    // Let's try to parse tool calls
-    // We need access to tools to validate, but we don't have them here easily.
-    // But we can use the same regex logic as handleCompleteResponse if we had the tools.
-    // For now, let's just yield text. 
-    // TODO: Pass tools to createStreamIterator to properly detect tool calls.
-    
-    if (generatedText) {
-      // Simulate streaming by yielding character by character
-      // In production, you might want to use token-based chunking
-      for (const char of generatedText) {
-        yield char;
+    // Use apply_chat_template with tools
+    if (this.tokenizer?.apply_chat_template) {
+      try {
+        return this.tokenizer.apply_chat_template(chatMessages, {
+          tools: functionGemmaTools.length > 0 ? functionGemmaTools : undefined,
+          tokenize: true,
+          add_generation_prompt: true,
+          return_dict: true,
+        });
+      } catch (error) {
+        console.warn("[Transformers.js] Chat template failed:", error);
+        throw error;
       }
     }
+
+    throw new Error("Tokenizer does not support apply_chat_template");
   }
 
   /**
    * Handle complete (non-streaming) response
    */
   private async handleCompleteResponse(
-    prompt: string,
-    options: any,
-    tools: ToolDefinition[]
+    inputs: any,
+    options: any
   ): Promise<ModelResponse> {
-    if (!this.pipeline) {
+    if (!this.pipeline || !this.tokenizer) {
       throw new Error("Pipeline not initialized");
     }
 
-    const output = await this.pipeline(prompt, options);
+    // Generate
+    const output = await this.pipeline.model.generate({ ...inputs, ...options });
+    
+    // Decode
+    const decoded = this.tokenizer.decode(output.slice(0, [inputs.input_ids.dims[1], null]), { skip_special_tokens: false });
 
-    // Extract generated text
-    const generatedText = Array.isArray(output)
-      ? output[0]?.generated_text || ""
-      : (output?.generated_text as string | undefined) || "";
+    this.log("[Transformers.js] Raw output:", decoded);
 
-    // Remove the prompt from the generated text
-    const responseText = generatedText
-      ? generatedText.replace(prompt, "").trim()
-      : "";
-
-    // Try to parse tool calls from the response
-    const toolCalls = this.parseToolCallsFromResponse(responseText, tools);
+    // Parse tool calls
+    const toolCalls = this.parseToolCallsFromResponse(decoded);
 
     if (toolCalls.length > 0) {
+      this.log("[Transformers.js] Detected tool calls:", toolCalls);
       return {
         type: "tool_calls",
         calls: toolCalls,
       } as ToolCallsResponse;
     }
 
-    // Regular content response
+    // Clean up special tokens for text response
+    const cleanText = decoded.replace(/<\|.*?\|>/g, "").trim();
+
     return {
       type: "content",
-      text: responseText,
+      text: cleanText,
     } as ContentResponse;
   }
 
   /**
-   * Parse tool calls from model response
-   * Looks for JSON objects in the format: {"tool": "tool_name", "arguments": {...}}
+   * Parse tool calls from model response (FunctionGemma format)
    */
   private parseToolCallsFromResponse(
-    response: string,
-    tools: ToolDefinition[]
+    response: string
   ): ToolCall[] {
     const toolCalls: ToolCall[] = [];
 
-    // Try to find JSON objects in the response
-    // Look for patterns like {"tool": "...", "arguments": {...}}
-    const jsonPattern =
-      /\{\s*"tool"\s*:\s*"([^"]+)"\s*,\s*"arguments"\s*:\s*(\{[^}]*\})\s*\}/g;
+    // FunctionGemma format: <start_function_call>call:name{args}<end_function_call>
+    // Regex to capture name and args
+    const functionCallPattern = /<start_function_call>call:([^{]+)\{(.*?)\}<end_function_call>/g;
+    
     let match;
-
-    while ((match = jsonPattern.exec(response)) !== null) {
+    while ((match = functionCallPattern.exec(response)) !== null) {
       const toolName = match[1];
-      const argumentsStr = match[2];
+      let argsString = match[2]; // e.g. location:<escape>London<escape>
 
-      if (!toolName || !argumentsStr) {
-        continue; // Skip invalid matches
-      }
+      if (!toolName || argsString === undefined) continue;
 
-      // Check if tool exists
-      const tool = tools.find((t) => t.name === toolName);
-      if (!tool) {
-        continue; // Skip unknown tools
-      }
+      // Clean up args: FunctionGemma uses <escape>...<escape> for strings sometimes?
+      // Or just standard JSON-like but without quotes on keys?
+      // The example shows: location:<escape>London<escape>
+      // Let's try to normalize it to JSON.
+      
+      // 1. Replace <escape> with "
+      argsString = argsString.replace(/<escape>/g, '"');
+      
+      // 2. Quote keys if missing (simple heuristic)
+      // location:"London" -> "location":"London"
+      argsString = argsString.replace(/([a-zA-Z0-9_]+):/g, '"$1":');
+
+      // 3. Wrap in braces if not already (it was inside braces in the regex match)
+      const jsonString = `{${argsString}}`;
 
       try {
-        const argumentsObj = JSON.parse(argumentsStr);
+        const args = JSON.parse(jsonString);
         toolCalls.push({
-          id: `call_${Date.now()}_${Math.random()}`,
+          id: `call_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
           name: toolName,
-          arguments: argumentsObj,
+          arguments: args,
         });
-      } catch {
-        // Invalid JSON, skip
-        continue;
-      }
-    }
-
-    // Alternative: Try to parse the entire response as a tool call
-    if (toolCalls.length === 0) {
-      try {
-        const parsed = JSON.parse(response.trim());
-        if (parsed.tool && parsed.arguments) {
-          const tool = tools.find((t) => t.name === parsed.tool);
-          if (tool) {
-            toolCalls.push({
-              id: `call_${Date.now()}_${Math.random()}`,
-              name: parsed.tool,
-              arguments: parsed.arguments,
-            });
-          }
-        }
-      } catch {
-        // Not a JSON tool call, that's fine
+      } catch (e) {
+        console.warn("Failed to parse function args:", jsonString, e);
       }
     }
 
@@ -419,8 +368,11 @@ export class TransformersRuntime extends BaseRuntime {
    * Dispose resources
    */
   async dispose(): Promise<void> {
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
     if (this.pipeline) {
-      // Transformers.js doesn't have explicit dispose, but we can clear references
       this.pipeline = null;
     }
     if (this.tokenizer) {

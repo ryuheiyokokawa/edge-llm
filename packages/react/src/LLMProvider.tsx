@@ -13,25 +13,41 @@ export interface LLMProviderProps {
   children: React.ReactNode;
 }
 
+// Module-level singletons to prevent double initialization in Strict Mode
+// and ensure state is synced across remounts.
+let globalClient: LLMClient | null = null;
+let isInitializing = false; // Synchronous lock to prevent races
+
 export function LLMProvider({
   config = {},
   serviceWorkerPath = "/sw.js",
   enableServiceWorker = false, // Disabled by default for now (dev mode compatibility)
   children,
 }: LLMProviderProps) {
-  const [client, setClient] = useState<LLMClient | null>(null);
+  const [client, setClient] = useState<LLMClient | null>(globalClient);
   const [status, setStatus] = useState<RuntimeStatus>("idle");
   const [initialized, setInitialized] = useState(false);
 
-
-  // Module-level singleton to prevent double initialization in Strict Mode
-  // and ensure state is synced to the latest mounted component.
   useEffect(() => {
     let mounted = true;
 
     async function setup() {
-      // If we already have a client instance in the state, we don't need to do anything
-      if (client) return;
+      // If we already have a client instance, we don't need to do anything
+      if (globalClient) {
+        if (mounted) {
+          setClient(globalClient);
+          const currentStatus = await globalClient.getStatus();
+          setStatus(currentStatus);
+          if (currentStatus === "ready") {
+            setInitialized(true);
+          }
+        }
+        return;
+      }
+
+      // Synchronous lock check
+      if (isInitializing) return;
+      isInitializing = true;
 
       try {
         // Register service worker (optional, disabled by default for dev mode)
@@ -51,32 +67,30 @@ export function LLMProvider({
           }
         }
 
-        // We need to create a new client for this mount if one doesn't exist
-        // But we want to avoid double-creation in Strict Mode.
-        // Since we can't easily use a global variable (it would persist across HMR),
-        // we'll rely on the fact that the second effect run happens after the first cleanup.
-        
-        // Actually, the most robust way for this specific app structure (where we want a singleton client)
-        // is to check if we can reuse an existing one or just be careful.
-        
-        // Let's try a simpler approach: just allow the client to be created, 
-        // but ensure we update the state of the *current* mount.
-        
         const newClient = new LLMClient();
-        
+        globalClient = newClient;
+
         // We set the client immediately so we have a reference
         if (mounted) {
           setClient(newClient);
           setStatus("initializing");
-          console.log("[Edge LLM] Initializing client...");
+          if (config.debug) {
+            console.log("[Edge LLM] Initializing client...");
+          }
         }
 
         try {
           await newClient.initialize(config);
           const currentStatus = await newClient.getStatus();
-          console.log("[Edge LLM] Initialization complete, status:", currentStatus);
+          if (config.debug) {
+            console.log(
+              "[Edge LLM] Initialization complete, status:",
+              currentStatus
+            );
+          }
 
           if (mounted) {
+            console.log("[Edge LLM] Setting initialized=true, status=", currentStatus);
             setStatus(currentStatus);
             setInitialized(true);
           }
@@ -85,22 +99,44 @@ export function LLMProvider({
           if (mounted) {
             setStatus("error");
           }
+          // Reset on error so we can try again
+          globalClient = null;
+          isInitializing = false;
         }
       } catch (error) {
         console.error("Failed to setup LLM client:", error);
         if (mounted) {
           setStatus("error");
         }
+        isInitializing = false;
       }
     }
 
     // Only run setup if we haven't initialized yet
-    if (!initialized && !client) {
-        setup();
+    let initTimer: ReturnType<typeof setTimeout> | null = null;
+    
+    if (!globalClient && !isInitializing) {
+      // Debounce initialization to handle Strict Mode double-mount
+      // This ensures we only initialize for the stable mount
+      initTimer = setTimeout(() => {
+        if (mounted) {
+          setup();
+        }
+      }, 250);
+    } else if (globalClient && !client) {
+      // If client exists but state is empty (remount), sync it
+      setClient(globalClient);
+      globalClient.getStatus().then(s => {
+        if (mounted) {
+          setStatus(s);
+          if (s === "ready") setInitialized(true);
+        }
+      });
     }
 
     return () => {
       mounted = false;
+      if (initTimer) clearTimeout(initTimer);
     };
   }, []); // Only run once on mount
 
