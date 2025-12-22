@@ -20,9 +20,16 @@ export class LLMClient {
   private requestIdCounter = 0;
   private runtimeManager: RuntimeManager | null = null;
   private toolRegistry: ToolRegistry = new ToolRegistry();
+  private debug: boolean = false;
 
   constructor() {
     this.serviceWorkerReady = this.ensureServiceWorker();
+  }
+
+  private log(...args: any[]) {
+    if (this.debug) {
+      console.log(...args);
+    }
   }
 
   /**
@@ -31,9 +38,9 @@ export class LLMClient {
    * For dev mode, service worker is optional
    */
   private async ensureServiceWorker(): Promise<void> {
-    console.log("[LLMClient] Checking service worker support...");
+    this.log("[LLMClient] Checking service worker support...");
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
-      console.log(
+      this.log(
         "[LLMClient] Service workers not supported, using direct execution"
       );
       // Service workers not supported - will work without them
@@ -44,28 +51,28 @@ export class LLMClient {
     try {
       // Check if there are any service workers registered
       const registrations = await navigator.serviceWorker.getRegistrations();
-      console.log(
+      this.log(
         "[LLMClient] Found",
         registrations.length,
         "service worker registrations"
       );
 
       if (registrations.length === 0) {
-        console.log(
+        this.log(
           "[LLMClient] No service workers registered, using direct execution"
         );
         this.serviceWorkerRegistration = null;
         return;
       }
 
-      console.log("[LLMClient] Waiting for service worker to be ready...");
+      this.log("[LLMClient] Waiting for service worker to be ready...");
       // Wait for service worker to be ready if it exists
       // The service worker should already be registered by the provider
       this.serviceWorkerRegistration = await navigator.serviceWorker.ready;
-      console.log("[LLMClient] Service worker is ready");
+      this.log("[LLMClient] Service worker is ready");
     } catch (error) {
       // Service worker not available - this is expected in dev mode
-      console.log(
+      this.log(
         "[LLMClient] Service worker not available, using direct execution:",
         error
       );
@@ -111,16 +118,16 @@ export class LLMClient {
   private async handleDirectExecution(
     message: ServiceWorkerMessage
   ): Promise<ServiceWorkerResponse> {
-    console.log("[LLMClient] Handling direct execution for:", message.type);
+    this.log("[LLMClient] Handling direct execution for:", message.type);
     switch (message.type) {
       case "INITIALIZE":
         try {
           if (!this.runtimeManager) {
-            console.log("[LLMClient] Creating RuntimeManager...");
+            this.log("[LLMClient] Creating RuntimeManager...");
             this.runtimeManager = new RuntimeManager(message.config);
-            console.log("[LLMClient] Initializing RuntimeManager...");
+            this.log("[LLMClient] Initializing RuntimeManager...");
             await this.runtimeManager.initialize();
-            console.log("[LLMClient] RuntimeManager initialized successfully");
+            this.log("[LLMClient] RuntimeManager initialized successfully");
           }
           return { type: "INITIALIZE_RESPONSE", success: true };
         } catch (error) {
@@ -199,21 +206,22 @@ export class LLMClient {
    * Initialize the service worker
    */
   async initialize(config: RuntimeConfig): Promise<void> {
-    console.log("[LLMClient] Starting initialize...");
-    console.log("[LLMClient] Waiting for service worker ready...");
+    this.debug = config.debug || false;
+    this.log("[LLMClient] Starting initialize...");
+    this.log("[LLMClient] Waiting for service worker ready...");
     await this.serviceWorkerReady;
-    console.log("[LLMClient] Service worker ready check complete");
-    console.log(
+    this.log("[LLMClient] Service worker ready check complete");
+    this.log(
       "[LLMClient] Service worker available:",
       !!this.serviceWorkerRegistration?.active
     );
 
-    console.log("[LLMClient] Sending INITIALIZE message...");
+    this.log("[LLMClient] Sending INITIALIZE message...");
     const response = await this.sendMessage({
       type: "INITIALIZE",
       config,
     });
-    console.log("[LLMClient] Received response:", response.type);
+    this.log("[LLMClient] Received response:", response.type);
 
     if (response.type === "INITIALIZE_RESPONSE") {
       if (!response.success) {
@@ -221,7 +229,7 @@ export class LLMClient {
         console.error("[LLMClient] Initialization failed:", errorMsg);
         throw new Error(errorMsg);
       }
-      console.log("[LLMClient] Initialization successful");
+      this.log("[LLMClient] Initialization successful");
     } else {
       console.error("[LLMClient] Unexpected response type:", response);
       throw new Error("Unexpected response type");
@@ -286,6 +294,17 @@ export class LLMClient {
       return response.status;
     } else {
       throw new Error("Unexpected response type");
+    }
+  }
+
+
+  /**
+   * Dispose client resources
+   */
+  async dispose(): Promise<void> {
+    if (this.runtimeManager) {
+      await this.runtimeManager.dispose();
+      this.runtimeManager = null;
     }
   }
 }

@@ -30,6 +30,12 @@ export abstract class BaseRuntime implements Runtime {
     this.status = status;
   }
 
+  protected log(...args: any[]): void {
+    if (this.config?.debug) {
+      console.log(...args);
+    }
+  }
+
   async dispose(): Promise<void> {
     this.status = "idle";
     this.config = null;

@@ -21,6 +21,12 @@ export class RuntimeManager {
     this.buildFallbackChain();
   }
 
+  private log(...args: any[]) {
+    if (this.config.debug) {
+      console.log(...args);
+    }
+  }
+
   private buildFallbackChain(): void {
     const preferred = this.config.preferredRuntime || "auto";
 
@@ -31,11 +37,10 @@ export class RuntimeManager {
       // Use preferred, then fallback based on strategy
       this.fallbackChain = [preferred];
 
-      if (preferred !== "api") {
-        this.fallbackChain.push("api");
-      }
       if (preferred === "webllm") {
-        this.fallbackChain.push("transformers");
+        this.fallbackChain.push("api", "transformers");
+      } else if (preferred === "transformers") {
+        this.fallbackChain.push("api");
       }
     }
   }
@@ -47,36 +52,28 @@ export class RuntimeManager {
     let lastError: Error | null = null;
 
     if (this.config.debug) {
-      console.log("[RuntimeManager] Fallback chain:", this.fallbackChain);
+      this.log("[RuntimeManager] Fallback chain:", this.fallbackChain);
     }
 
     // Check WebGPU support for debugging
     const hasWebGPU = await RuntimeManager.checkWebGPUSupport();
-    if (this.config.debug) {
-      console.log("[RuntimeManager] WebGPU available:", hasWebGPU);
-    }
+    this.log("[RuntimeManager] WebGPU available:", hasWebGPU);
 
     for (const runtimeType of this.fallbackChain) {
       try {
-        if (this.config.debug) {
-          console.log(
-            `[RuntimeManager] Attempting to initialize ${runtimeType}...`
-          );
-        }
-        
+        this.log(`[RuntimeManager] Attempting to initialize ${runtimeType}...`);
+
         if (runtimeType === "webllm" && !hasWebGPU) {
-          if (this.config.debug) {
-            console.warn("[RuntimeManager] Skipping WebLLM because WebGPU is not available");
-          }
+          this.log(
+            "[RuntimeManager] Skipping WebLLM because WebGPU is not available"
+          );
           continue;
         }
 
         const runtime = this.createRuntime(runtimeType);
         await runtime.initialize(this.config);
         this.currentRuntime = runtime;
-        if (this.config.debug) {
-          console.log(`[RuntimeManager] Successfully initialized ${runtimeType}`);
-        }
+        this.log(`[RuntimeManager] Successfully initialized ${runtimeType}`);
         return;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
