@@ -37,7 +37,7 @@
   "author": "Ryuhei Yokokawa",
   "license": "MIT",
   "dependencies": {
-    "@edge-llm/core": "workspace:*"
+    "@edge-llm/core": "*"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

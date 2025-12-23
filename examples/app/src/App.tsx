@@ -3,7 +3,7 @@ import { LLMProvider } from "@edge-llm/react";
 import { ChatInterface } from "./components/ChatInterface";
 
 function App() {
-  const [runtime, setRuntime] = useState<"webllm" | "transformers">("transformers");
+  const [runtime, setRuntime] = useState<"webllm" | "transformers" | "api">("transformers");
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
@@ -28,6 +28,7 @@ function App() {
             >
               <option value="transformers">Transformers.js (FunctionGemma)</option>
               <option value="webllm">WebLLM (Llama 3)</option>
+              <option value="api">API (Ollama Bridge)</option>
             </select>
           </label>
         </div>
@@ -37,11 +38,13 @@ function App() {
         key={runtime} // Force re-initialization when runtime changes
         config={{
           preferredRuntime: runtime,
-          toolCallFormat: runtime === "transformers" ? "xml" : "xml", // Use XML for both for now, or just leave as config
+          apiUrl: "http://localhost:3001/v1/chat/completions",
+          toolCallFormat: runtime === "api" ? "json" : "xml",
           debug: true,
           models: {
             webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
             transformers: "onnx-community/functiongemma-270m-it-ONNX-GQA",
+            api: "llama3", // Default model for Ollama
           },
         }}
         enableServiceWorker={false}

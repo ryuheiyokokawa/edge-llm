@@ -105,6 +105,10 @@ export interface RuntimeConfig {
   preferredRuntime?: RuntimeType;
   debug?: boolean;
   fallbackStrategy?: "quality" | "speed" | "cost";
+  /** API URL for external runtimes */
+  apiUrl?: string;
+
+  /** API Key for external runtimes */
   apiKey?: string;
   apiBaseUrl?: string;
   modelId?: string;
