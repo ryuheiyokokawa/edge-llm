@@ -44,7 +44,7 @@ function App() {
           models: {
             webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
             transformers: "onnx-community/functiongemma-270m-it-ONNX-GQA",
-            api: "llama3", // Default model for Ollama
+            api: "llama3.2", // Default model for Ollama
           },
         }}
         enableServiceWorker={false}

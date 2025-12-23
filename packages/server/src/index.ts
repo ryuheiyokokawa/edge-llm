@@ -4,6 +4,7 @@ import ollama from "ollama";
 
 const app = express();
 const port = process.env.PORT || 3001;
+const DEFAULT_MODEL = "llama3.2";
 
 app.use(cors());
 app.use(express.json());
@@ -13,7 +14,8 @@ app.post("/v1/chat/completions", async (req: express.Request, res: express.Respo
   const { messages, tools, stream, model } = req.body;
 
   try {
-    console.log(`[Bridge] Request for model: ${model || "llama3"}`);
+    const modelToUse = model || DEFAULT_MODEL;
+    console.log(`[Bridge] Request for model: ${modelToUse}`);
     
     if (stream) {
       res.setHeader("Content-Type", "text/event-stream");
@@ -21,7 +23,7 @@ app.post("/v1/chat/completions", async (req: express.Request, res: express.Respo
       res.setHeader("Connection", "keep-alive");
 
       const response = await ollama.chat({
-        model: model || "llama3",
+        model: modelToUse,
         messages,
         tools,
         stream: true,
@@ -43,7 +45,7 @@ app.post("/v1/chat/completions", async (req: express.Request, res: express.Respo
       res.end();
     } else {
       const response = await ollama.chat({
-        model: model || "llama3",
+        model: modelToUse,
         messages,
         tools,
         stream: false,

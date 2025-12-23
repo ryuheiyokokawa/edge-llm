@@ -80,9 +80,13 @@ export class RuntimeManager {
         const runtime = this.createRuntime(runtimeType);
         this.initializingRuntime = runtime;
         
+        // Extract model ID from models map if available
+        const runtimeModelId = this.config.models?.[runtimeType as keyof NonNullable<typeof this.config.models>];
+
         // Pass parent abort signal to runtime
         await runtime.initialize({
           ...this.config,
+          modelId: runtimeModelId || this.config.modelId,
           signal: this.abortController.signal,
         });
 

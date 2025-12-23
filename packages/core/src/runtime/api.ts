@@ -55,7 +55,7 @@ export class APIRuntime extends BaseRuntime {
         }
       })) : undefined,
       stream: options?.stream ?? false,
-      model: this.config.modelId || "default"
+      model: this.config.modelId
     };
 
     const response = await fetch(apiUrl, {
