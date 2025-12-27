@@ -1,6 +1,18 @@
 # @edge-llm/core
 
-Core runtime for edge-first LLM tool calling.
+The intelligent runtime manager for hybrid AI inference in the browser.
+
+This package handles the complex logic of orchestrating LLMs: choosing the best available runtime (WebGPU vs WASM vs API), managing downloads, executing tool calls, and enabling seamless hot-mapping.
+
+## Features
+
+- **🧠 Hybrid Inference Engine**: Starts instantly with a cloud API, then silently hot-swaps to a local model (WebLLM/Transformers.js) once downloaded.
+- **🛠 Universal Tool Calling**: Write tools once using standard schemas, and run them on any backend. Handles JSON/XML format differences automatically.
+- **🔄 Smart Fallback**:
+  - **Tier 1**: WebLLM (WebGPU) - Fastest, local.
+  - **Tier 2**: Transformers.js (WASM) - CPU fallback, local.
+  - **Tier 3**: API (OpenAI/Ollama) - Universal fallback, immediate start.
+- **⚡ Hot-Swap Ready**: Applications remain interactive during the 1-2GB model download. The switching happens in the background without user interruption.
 
 ## Installation
 
@@ -8,53 +20,70 @@ Core runtime for edge-first LLM tool calling.
 npm install @edge-llm/core
 ```
 
-## Usage
+## Basic Usage
 
 ```typescript
-import { RuntimeManager, RuntimeConfig } from "@edge-llm/core";
+import { LLMClient } from "@edge-llm/core";
 
-// 1. Configure the runtime
-const config: RuntimeConfig = {
-  preferredRuntime: "auto", // "webllm" | "transformers" | "api" | "auto"
-  debug: true, // Enable debug logging
+// 1. Initialize the client
+const client = new LLMClient();
+
+await client.initialize({
+  // "auto" prioritizes: API (for speed) -> WebGPU -> WASM
+  preferredRuntime: "auto", 
+  
+  // Optional: API fallback (e.g., local Ollama bridge)
+  apiUrl: "http://localhost:3001/v1/chat/completions",
+  
   models: {
-    webllm: { modelId: "Llama-3-8B-Instruct-q4f16_1-MLC" },
-    transformers: { modelId: "Xenova/Qwen2.5-0.5B-Instruct" },
+    // Local models to download in background
+    webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
+    transformers: "onnx-community/functiongemma-270m-it-ONNX",
   }
-};
+});
 
-// 2. Initialize manager
-const manager = new RuntimeManager(config);
-await manager.initialize();
-
-// 3. Get the runtime and chat
-const runtime = manager.getRuntime();
-const response = await runtime.chat([
-  { role: "user", content: "Hello world!" }
-], []);
-
-console.log(response);
+// 2. Chat with tools
+const response = await client.chat([
+  { role: "user", content: "Calculate 5 * 12" }
+], [
+  {
+    name: "calculate",
+    description: "Evaluate a math expression",
+    parameters: { type: "object", properties: { expression: { type: "string" } } },
+    handler: async ({ expression }) => eval(expression)
+  }
+]);
 ```
 
-## Configuration
+## Hybrid Inference & Hot-Swapping
 
-The `RuntimeConfig` object supports the following options:
+The core philosophy of `@edge-llm/core` is **"Reliability First"**.
 
-- `preferredRuntime`: Force a specific runtime (`"webllm"`, `"transformers"`, `"api"`) or use `"auto"` to select the best available.
-- `debug`: Enable verbose console logging for debugging.
-- `models`: Configuration for specific runtimes.
-  - `webllm`: `{ modelId: string, modelLib?: string }`
-  - `transformers`: `{ modelId: string, quantized?: boolean }`
-  - `api`: `{ modelId: string, baseUrl?: string }`
-- `fallbackStrategy`: Strategy for fallback (`"quality"`, `"speed"`, `"cost"`).
+1.  **Instant Start**: If an `apiUrl` is provided, the client is "Ready" immediately. It routes initial requests to the API.
+2.  **Background Download**: If a local runtime (WebLLM/Transformers.js) is configured, it begins downloading model weights in the background.
+3.  **Seamless Switch**: Once the local model is fully loaded and compiled, the client automatically "hot-swaps" the active backend. Subsequent requests run locally on-device.
 
-## Architecture
+### Configuration
 
-Edge LLM uses a fallback mechanism to ensure the best possible experience:
+```typescript
+type RuntimeConfig = {
+  // Strategy
+  preferredRuntime?: "webllm" | "transformers" | "api" | "auto";
+  fallbackStrategy?: "quality" | "speed" | "cost";
 
-1.  **WebLLM (WebGPU)**: High-performance, hardware-accelerated inference. Requires WebGPU support.
-2.  **Transformers.js (WASM)**: CPU-based inference using WebAssembly. Works on most modern browsers.
-3.  **API Fallback**: Optional fallback to a remote API if local inference is not possible.
+  // API Config (for API Runtime)
+  apiUrl?: string;
+  apiKey?: string;
+  
+  // Model Config
+  models?: {
+    webllm?: string;       // e.g. "Llama-3-8B-Instruct-q4f16_1-MLC"
+    transformers?: string; // e.g. "onnx-community/functiongemma-270m-it-ONNX"
+    api?: string;          // e.g. "llama3" (for Ollama) or "gpt-4o"
+  };
 
-The `RuntimeManager` automatically detects available capabilities and selects the appropriate runtime.
-
+  // Tool Format Override
+  // "json" (standard) or "xml" (FunctionGemma)
+  toolCallFormat?: "json" | "xml";
+}
+```
