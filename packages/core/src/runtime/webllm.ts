@@ -4,11 +4,12 @@
 import {
   ChatOptions,
   Runtime,
-  Message,
-  ModelResponse,
+  RuntimeType,
   RuntimeConfig,
+  Message,
   ToolDefinition,
-} from "../types";
+  ModelResponse,
+} from "../types.js";
 import * as webllm from "@mlc-ai/web-llm";
 import { generateSystemPrompt } from "../prompt/system";
 import { extractJSON } from "../utils/json-parser";
@@ -86,6 +87,10 @@ export class WebLLMRuntime implements Runtime {
     if (this.engine) return "ready";
     if (this.initPromise) return "initializing";
     return "idle";
+  }
+
+  getType(): RuntimeType {
+    return "webllm";
   }
 
   async dispose(): Promise<void> {
@@ -188,7 +193,8 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
       
       if (format === "xml") {
         // FunctionGemma style XML parsing logic (reused from transformers.ts logic concept)
-        const functionCallPattern = /<start_function_call>(?:call:)?([a-zA-Z0-9_-]+)\{(.*?)\}<end_function_call>/gs;
+        // Allow both <tag> and (tag) because some models hallucinate parentheses
+        const functionCallPattern = /[<(]start_function_call[>)](?:call:)?([a-zA-Z0-9_-]+)\{(.*?)\}[<(]end_function_call[>)]/gs;
         let match = functionCallPattern.exec(content);
         if (match) {
           const toolName = match[1]?.trim();
@@ -200,6 +206,7 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
                return {
                  type: "tool_calls",
                  calls: [{ id: `call_${Date.now()}`, name: toolName, arguments: args }],
+                 text: content, // Pass original text for history preservation
                };
              } catch (e) {
                console.warn("[WebLLM] Failed to parse XML-like args:", argsString, e);
@@ -221,6 +228,7 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
                 arguments: json.arguments,
               },
             ],
+            text: content, // Pass original text for history preservation
           };
         }
       }

@@ -39,7 +39,7 @@ function App() {
         config={{
           preferredRuntime: runtime,
           apiUrl: "http://localhost:3001/v1/chat/completions",
-          toolCallFormat: runtime === "api" ? "json" : "xml",
+          toolCallFormat: runtime === "transformers" ? "xml" : "json",
           debug: true,
           models: {
             webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",

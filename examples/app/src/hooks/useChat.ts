@@ -60,7 +60,7 @@ export function useChat() {
           const toolCalls = response.calls;
           const assistantMsg: Message = {
             role: "assistant",
-            content: "", // JSON mode usually puts content in the message, but for history we can leave empty or put the JSON
+            content: response.text || "", // Include original text content (critical for XML mode)
             tool_calls: toolCalls.map(tc => ({
               id: tc.id,
               name: tc.name,

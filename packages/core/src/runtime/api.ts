@@ -5,6 +5,7 @@
 import { BaseRuntime } from "./base.js";
 import type {
   RuntimeConfig,
+  RuntimeType,
   Message,
   ToolDefinition,
   ModelResponse,
@@ -131,5 +132,8 @@ export class APIRuntime extends BaseRuntime {
         text: data.choices?.[0]?.message?.content || data.content || ""
       };
     }
+  }
+  getType(): RuntimeType {
+    return "api";
   }
 }

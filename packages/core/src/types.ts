@@ -73,6 +73,7 @@ export type ModelResponse = ToolCallsResponse | ContentResponse;
 export interface ToolCallsResponse {
   type: "tool_calls";
   calls: ToolCall[];
+  text?: string;
 }
 
 export interface ToolCallChunk {
@@ -150,6 +151,11 @@ export interface Runtime {
    * Get current status
    */
   getStatus(): RuntimeStatus;
+
+  /**
+   * Get the runtime type
+   */
+  getType(): RuntimeType;
 
   /**
    * Cleanup resources
@@ -267,6 +273,7 @@ export interface StatusResponse {
   type: "STATUS_RESPONSE";
   requestId: string;
   status: RuntimeStatus;
+  activeRuntime?: RuntimeType;
 }
 
 export interface ClearCacheResponse {

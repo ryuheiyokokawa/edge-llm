@@ -3,7 +3,7 @@
  */
 import React, { useEffect, useState } from "react";
 import { LLMClient } from "@edge-llm/core";
-import type { RuntimeConfig, RuntimeStatus } from "@edge-llm/core";
+import type { RuntimeConfig, RuntimeStatus, RuntimeType } from "@edge-llm/core";
 import { LLMContext, type LLMContextValue } from "./context.js";
 
 export interface LLMProviderProps {
@@ -34,6 +34,7 @@ export function LLMProvider({
 }: LLMProviderProps) {
   const [client, setClient] = useState<LLMClient | null>(globalClient);
   const [status, setStatus] = useState<RuntimeStatus>("idle");
+  const [activeRuntime, setActiveRuntime] = useState<RuntimeType | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -49,12 +50,17 @@ export function LLMProvider({
           try {
             setStatus("initializing");
             await globalClient.initialize(config);
-            const currentStatus = await globalClient.getStatus();
-            setStatus(currentStatus);
-            if (currentStatus === "ready") {
+            const statusResponse = await globalClient.getStatusWithDetails();
+            setStatus(statusResponse.status);
+            setActiveRuntime(statusResponse.activeRuntime || null);
+            if (statusResponse.status === "ready") {
               setInitialized(true);
             }
           } catch (error) {
+            if (error instanceof Error && error.message === "Aborted") {
+              console.log("[Edge LLM] Re-initialization aborted (new request started)");
+              return;
+            }
             console.error("[Edge LLM] Re-initialization error:", error);
             setStatus("error");
           }
@@ -98,17 +104,18 @@ export function LLMProvider({
 
         try {
           await newClient.initialize(config);
-          const currentStatus = await newClient.getStatus();
+          const statusResponse = await newClient.getStatusWithDetails();
           if (config.debug) {
             console.log(
               "[Edge LLM] Initialization complete, status:",
-              currentStatus
+              statusResponse.status
             );
           }
 
           if (mounted) {
-            console.log("[Edge LLM] Setting initialized=true, status=", currentStatus);
-            setStatus(currentStatus);
+            console.log("[Edge LLM] Setting initialized=true, status=", statusResponse.status);
+            setStatus(statusResponse.status);
+            setActiveRuntime(statusResponse.activeRuntime || null);
             setInitialized(true);
           }
         } catch (initError) {
@@ -150,8 +157,9 @@ export function LLMProvider({
 
     const interval = setInterval(async () => {
       try {
-        const currentStatus = await client.getStatus();
-        setStatus(currentStatus);
+        const statusResponse = await client.getStatusWithDetails();
+        setStatus(statusResponse.status);
+        setActiveRuntime(statusResponse.activeRuntime || null);
       } catch (error) {
         // Silently handle errors during initialization
         console.debug(
@@ -173,6 +181,7 @@ export function LLMProvider({
   const contextValue: LLMContextValue = {
     client,
     status,
+    activeRuntime,
     config,
     initialized,
     clearCache,

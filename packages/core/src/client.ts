@@ -7,9 +7,11 @@ import type {
   ToolDefinition,
   ModelResponse,
   ChatOptions,
+  RuntimeType,
   RuntimeStatus,
   ServiceWorkerMessage,
   ServiceWorkerResponse,
+  StatusResponse,
 } from "./types.js";
 import { RuntimeManager } from "./runtime/manager.js";
 import { ToolRegistry } from "./tool-registry.js";
@@ -206,17 +208,44 @@ export class LLMClient {
         try {
           const runtime = this.runtimeManager.getRuntime();
           const tools = this.toolRegistry.getAll();
-          const response = await runtime.chat(
-            message.messages,
-            tools,
-            message.options
-          );
+          
+          try {
+            const response = await runtime.chat(
+              message.messages,
+              tools,
+              message.options
+            );
 
-          return {
-            type: "CHAT_RESPONSE",
-            requestId: message.requestId,
-            response,
-          };
+            return {
+              type: "CHAT_RESPONSE",
+              requestId: message.requestId,
+              response,
+            };
+          } catch (runtimeError) {
+            // SILENT FAILOVER: If local runtime fails, try falling back to API
+            const runtimeType = runtime.getType();
+            if (runtimeType !== "api") {
+               console.warn(`[LLMClient] Runtime ${runtimeType} failed, attempting fallback to API:`, runtimeError);
+               
+               // Force re-initialization to pick up the next available runtime (usually API)
+               // This will dispose of the failed runtime
+               await this.runtimeManager.initialize();
+               
+               const newRuntime = this.runtimeManager.getRuntime();
+               const response = await newRuntime.chat(
+                 message.messages,
+                 tools,
+                 message.options
+               );
+
+               return {
+                 type: "CHAT_RESPONSE",
+                 requestId: message.requestId,
+                 response,
+               };
+            }
+            throw runtimeError;
+          }
         } catch (error) {
           return {
             type: "CHAT_RESPONSE",
@@ -228,11 +257,11 @@ export class LLMClient {
       }
 
       case "STATUS": {
-        const status = this.runtimeManager?.getStatus() || "idle";
         return {
           type: "STATUS_RESPONSE",
           requestId: message.requestId,
-          status,
+          status: this.runtimeManager?.getStatus() || "idle",
+          activeRuntime: this.runtimeManager?.getActiveRuntimeType(),
         };
       }
 
@@ -325,25 +354,36 @@ export class LLMClient {
    * Get current status
    */
   async getStatus(): Promise<RuntimeStatus> {
+    const response = await this.getStatusWithDetails();
+    return response.status;
+  }
+
+  /**
+   * Get complete status including active runtime type
+   */
+  async getStatusWithDetails(): Promise<StatusResponse> {
     await this.serviceWorkerReady;
 
     // If using direct execution, get status from runtime manager
     if (!this.serviceWorkerRegistration?.active && this.runtimeManager) {
-      return this.runtimeManager.getStatus();
+      return {
+        type: "STATUS_RESPONSE",
+        requestId: Math.random().toString(36).substring(7), // Generate a dummy requestId
+        status: this.runtimeManager.getStatus(),
+        activeRuntime: this.runtimeManager.getActiveRuntimeType(),
+      };
     }
-
-    const requestId = `status-${++this.requestIdCounter}`;
 
     const response = await this.sendMessage({
       type: "STATUS",
-      requestId,
+      requestId: Math.random().toString(36).substring(7),
     });
 
     if (response.type === "STATUS_RESPONSE") {
-      return response.status;
-    } else {
-      throw new Error("Unexpected response type");
+      return response;
     }
+
+    throw new Error("Invalid status response");
   }
 
   /**

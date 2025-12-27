@@ -640,8 +640,8 @@ function App() {
 
 ### Phase 3: Production Readiness
 
-- [ ] API fallback implementation
-- [ ] Hybrid inference (start local, escalate to API)
+- [ ] API fallback implementation (Ollama, OpenAI, etc.)
+- [ ] Seamless hybrid inference (Start with API, background load local, hot-swap when ready)
 - [ ] Memory management (context pruning)
 - [ ] Tool execution sandboxing
 - [ ] Rate limiting & cost controls (API mode)

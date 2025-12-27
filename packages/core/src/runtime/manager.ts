@@ -51,77 +51,102 @@ export class RuntimeManager {
    * Initialize the best available runtime
    */
   async initialize(): Promise<void> {
-    let lastError: Error | null = null;
-
-    if (this.config.debug) {
-      this.log("[RuntimeManager] Fallback chain:", this.fallbackChain);
-    }
-
-    // Check WebGPU support for debugging
     const hasWebGPU = await RuntimeManager.checkWebGPUSupport();
     this.log("[RuntimeManager] WebGPU available:", hasWebGPU);
 
-    for (const runtimeType of this.fallbackChain) {
-      if (this.abortController.signal.aborted) {
-        this.log("[RuntimeManager] Initialization aborted");
-        return;
+    // Initial pass: Fast-path API if available to get "ready" instantly
+    if (this.fallbackChain.includes("api")) {
+      try {
+        this.log("[RuntimeManager] Fast-pathing API runtime for instant availability...");
+        const apiRuntime = await this.tryInitializeRuntime("api");
+        this.currentRuntime = apiRuntime;
+      } catch (e) {
+        this.log("[RuntimeManager] API fast-path failed, will follow standard chain");
       }
+    }
+
+    // Secondary pass: Background load the preferred local runtime if not already active
+    const preferredLocal = this.fallbackChain.find(t => t === "webllm" || t === "transformers");
+    if (preferredLocal && this.currentRuntime?.getType() !== preferredLocal) {
+        // Start background loading
+        this.backgroundInitialize(preferredLocal).catch(err => {
+            console.warn(`[RuntimeManager] Background loading of ${preferredLocal} failed:`, err);
+        });
+    }
+
+    // If we have NO runtime yet, we must wait for the first successful one in the chain
+    if (!this.currentRuntime) {
+        await this.sequentialInitialize();
+    }
+  }
+
+  private async backgroundInitialize(type: RuntimeType): Promise<void> {
+    try {
+        this.log(`[RuntimeManager] Background initializing ${type}...`);
+        const runtime = await this.tryInitializeRuntime(type);
+        
+        // If successful, swap it in as the primary
+        if (runtime && !this.abortController.signal.aborted) {
+            this.log(`[RuntimeManager] Hot-swapping to ${type}`);
+            const oldRuntime = this.currentRuntime;
+            this.currentRuntime = runtime;
+            
+            // Only dispose if it's NOT the same runtime instance (sanity check)
+            if (oldRuntime && oldRuntime !== runtime) {
+                this.log(`[RuntimeManager] Disposing old runtime: ${oldRuntime.getType()}`);
+                await oldRuntime.dispose();
+            }
+        }
+    } catch (e) {
+        this.log(`[RuntimeManager] Background initialization of ${type} failed, staying on current.`);
+    }
+  }
+
+  private async sequentialInitialize(): Promise<void> {
+    let lastError: Error | null = null;
+
+    for (const runtimeType of this.fallbackChain) {
+      if (this.currentRuntime?.getType() === runtimeType) return;
+      if (this.abortController.signal.aborted) return;
 
       try {
-        this.log(`[RuntimeManager] Attempting to initialize ${runtimeType}...`);
-
-        if (runtimeType === "webllm" && !hasWebGPU) {
-          this.log(
-            "[RuntimeManager] Skipping WebLLM because WebGPU is not available"
-          );
-          continue;
-        }
-
-        const runtime = this.createRuntime(runtimeType);
-        this.initializingRuntime = runtime;
-        
-        // Extract model ID from models map if available
-        const runtimeModelId = this.config.models?.[runtimeType as keyof NonNullable<typeof this.config.models>];
-
-        // Pass parent abort signal to runtime
-        await runtime.initialize({
-          ...this.config,
-          modelId: runtimeModelId || this.config.modelId,
-          signal: this.abortController.signal,
-        });
-
-        if (this.abortController.signal.aborted) {
-          this.log("[RuntimeManager] Successfully initialized but already aborted, disposing...");
-          await runtime.dispose();
-          this.initializingRuntime = null;
-          return;
-        }
-
+        const runtime = await this.tryInitializeRuntime(runtimeType as RuntimeType);
         this.currentRuntime = runtime;
-        this.initializingRuntime = null;
-        this.log(`[RuntimeManager] Successfully initialized ${runtimeType}`);
         return;
       } catch (error) {
-        if (this.abortController.signal.aborted) {
-          this.log("[RuntimeManager] Aborted during error handling");
-          return;
-        }
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        console.warn(
-          `[RuntimeManager] Failed to initialize ${runtimeType}:`,
-          errorMsg
-        );
         lastError = error instanceof Error ? error : new Error(String(error));
-        // Try next runtime in fallback chain
         continue;
       }
     }
 
-    const errorMsg = `Failed to initialize any runtime: ${
-      lastError?.message || "Unknown error"
-    }`;
-    console.error("[RuntimeManager]", errorMsg);
-    throw new Error(errorMsg);
+    throw new Error(`Failed to initialize any runtime: ${lastError?.message || "Unknown error"}`);
+  }
+
+  private async tryInitializeRuntime(type: RuntimeType): Promise<Runtime> {
+    const hasWebGPU = await RuntimeManager.checkWebGPUSupport();
+    if (type === "webllm" && !hasWebGPU) {
+        throw new Error("WebGPU not supported");
+    }
+
+    const runtime = this.createRuntime(type);
+    this.initializingRuntime = runtime;
+
+    const runtimeModelId = this.config.models?.[type as keyof NonNullable<typeof this.config.models>];
+
+    await runtime.initialize({
+      ...this.config,
+      modelId: runtimeModelId || this.config.modelId,
+      signal: this.abortController.signal,
+    });
+
+    if (this.abortController.signal.aborted) {
+      await runtime.dispose();
+      throw new Error("Aborted");
+    }
+
+    // Pure: Do NOT set `currentRuntime` here. Let the caller decide.
+    this.initializingRuntime = null;
+    return runtime;
   }
 
   /**
@@ -155,6 +180,13 @@ export class RuntimeManager {
    */
   getStatus(): RuntimeStatus {
     return this.currentRuntime?.getStatus() || "idle";
+  }
+
+  /**
+   * Get the type of the active runtime
+   */
+  getActiveRuntimeType(): RuntimeType | undefined {
+    return this.currentRuntime?.getType();
   }
 
   /**

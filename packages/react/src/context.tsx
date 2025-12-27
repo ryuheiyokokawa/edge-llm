@@ -3,11 +3,12 @@
  */
 import { createContext, useContext } from "react";
 import type { LLMClient } from "@edge-llm/core";
-import type { RuntimeConfig, RuntimeStatus } from "@edge-llm/core";
+import type { RuntimeConfig, RuntimeStatus, RuntimeType } from "@edge-llm/core";
 
 export interface LLMContextValue {
   client: LLMClient | null;
   status: RuntimeStatus;
+  activeRuntime: RuntimeType | null;
   config: RuntimeConfig;
   initialized: boolean;
   clearCache: () => Promise<void>;

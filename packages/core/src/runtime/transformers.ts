@@ -3,6 +3,7 @@
  */
 import { BaseRuntime } from "./base.js";
 import type {
+  RuntimeType,
   RuntimeConfig,
   Message,
   ToolDefinition,
@@ -214,6 +215,10 @@ export class TransformersRuntime extends BaseRuntime {
     this.setStatus("ready");
   }
 
+  getType(): RuntimeType {
+    return "transformers";
+  }
+
   async chat(
     messages: Message[],
     tools: ToolDefinition[],
@@ -389,6 +394,7 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
     return {
       type: "tool_calls",
       calls: toolCalls,
+      text: decoded, // Pass original text for history preservation
     } as ToolCallsResponse;
   }
 
