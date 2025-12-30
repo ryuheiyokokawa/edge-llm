@@ -8,13 +8,17 @@ import { useLLMContext } from "../context";
 // Mock @edge-llm/core
 const mockInitialize = jest.fn();
 const mockGetStatus = jest.fn();
+const mockGetStatusWithDetails = jest.fn();
 const mockChat = jest.fn();
+const mockClearCache = jest.fn();
 
 jest.mock("@edge-llm/core", () => ({
   LLMClient: jest.fn().mockImplementation(() => ({
     initialize: mockInitialize,
     getStatus: mockGetStatus,
+    getStatusWithDetails: mockGetStatusWithDetails,
     chat: mockChat,
+    clearCache: mockClearCache,
   })),
 }));
 
@@ -39,6 +43,12 @@ describe("LLMProvider", () => {
     // Default successful mock behavior
     mockInitialize.mockResolvedValue(undefined);
     mockGetStatus.mockResolvedValue("ready");
+    mockGetStatusWithDetails.mockResolvedValue({ 
+      type: "STATUS_RESPONSE", 
+      status: "ready", 
+      activeRuntime: "transformers" 
+    });
+    mockClearCache.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -173,14 +183,14 @@ describe("LLMProvider", () => {
       expect(screen.getByTestId("hasClient")).toHaveTextContent("yes");
     });
 
-    // Clear the initial getStatus calls
-    mockGetStatus.mockClear();
+    // Clear the initial getStatusWithDetails calls
+    mockGetStatusWithDetails.mockClear();
 
     // Advance timers to trigger status polling
     await act(async () => {
       jest.advanceTimersByTime(1000);
     });
 
-    expect(mockGetStatus).toHaveBeenCalled();
+    expect(mockGetStatusWithDetails).toHaveBeenCalled();
   });
 });

@@ -32,8 +32,10 @@ describe("LLMContext", () => {
       const mockContextValue: LLMContextValue = {
         client: null,
         status: "ready",
+        activeRuntime: "transformers",
         config: {},
         initialized: true,
+        clearCache: async () => {},
       };
 
       render(
@@ -50,8 +52,10 @@ describe("LLMContext", () => {
       const mockContextValue: LLMContextValue = {
         client: null,
         status: "idle",
+        activeRuntime: null,
         config: {},
         initialized: false,
+        clearCache: async () => {},
       };
 
       render(
@@ -68,8 +72,10 @@ describe("LLMContext", () => {
       const mockContextValue: LLMContextValue = {
         client: null,
         status: "error",
+        activeRuntime: null,
         config: {},
         initialized: false,
+        clearCache: async () => {},
       };
 
       render(

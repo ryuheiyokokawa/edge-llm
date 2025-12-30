@@ -16,6 +16,19 @@ function createMockClient() {
   };
 }
 
+// Helper to create complete context value with all required properties
+function createContextValue(overrides: Partial<LLMContextValue> = {}): LLMContextValue {
+  return {
+    client: null,
+    status: "idle",
+    activeRuntime: null,
+    config: {},
+    initialized: false,
+    clearCache: async () => {},
+    ...overrides,
+  };
+}
+
 // Test wrapper component
 function createWrapper(contextValue: LLMContextValue) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
@@ -82,12 +95,12 @@ describe("useLLM", () => {
   describe("status and initialized", () => {
     it("should return status from context", () => {
       const mockClient = createMockClient();
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: mockClient as any,
         status: "ready",
-        config: {},
+        activeRuntime: "transformers",
         initialized: true,
-      };
+      });
 
       render(<TestComponent />, { wrapper: createWrapper(contextValue) });
 
@@ -96,12 +109,10 @@ describe("useLLM", () => {
     });
 
     it("should reflect not initialized state", () => {
-      const contextValue: LLMContextValue = {
-        client: null,
+      const contextValue = createContextValue({
         status: "idle",
-        config: {},
         initialized: false,
-      };
+      });
 
       render(<TestComponent />, { wrapper: createWrapper(contextValue) });
 
@@ -112,12 +123,11 @@ describe("useLLM", () => {
 
   describe("send", () => {
     it("should throw when client is not initialized", async () => {
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: null,
         status: "idle",
-        config: {},
         initialized: false,
-      };
+      });
 
       // We need to catch the error in the component itself
       let caughtError: Error | null = null;
@@ -147,12 +157,12 @@ describe("useLLM", () => {
 
     it("should call client.chat with message", async () => {
       const mockClient = createMockClient();
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: mockClient as any,
         status: "ready",
-        config: {},
+        activeRuntime: "transformers",
         initialized: true,
-      };
+      });
 
       const onSend = jest.fn();
       render(<TestComponent onSend={onSend} />, { wrapper: createWrapper(contextValue) });
@@ -174,12 +184,12 @@ describe("useLLM", () => {
   describe("tool registration", () => {
     it("should register a tool", async () => {
       const mockClient = createMockClient();
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: mockClient as any,
         status: "ready",
-        config: {},
+        activeRuntime: "transformers",
         initialized: true,
-      };
+      });
 
       render(<TestComponent />, { wrapper: createWrapper(contextValue) });
 
@@ -203,12 +213,12 @@ describe("useLLM", () => {
 
     it("should register multiple tools", async () => {
       const mockClient = createMockClient();
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: mockClient as any,
         status: "ready",
-        config: {},
+        activeRuntime: "transformers",
         initialized: true,
-      };
+      });
 
       render(<TestComponent />, { wrapper: createWrapper(contextValue) });
 
@@ -229,12 +239,12 @@ describe("useLLM", () => {
 
     it("should unregister a tool", async () => {
       const mockClient = createMockClient();
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: mockClient as any,
         status: "ready",
-        config: {},
+        activeRuntime: "transformers",
         initialized: true,
-      };
+      });
 
       render(<TestComponent />, { wrapper: createWrapper(contextValue) });
 
@@ -261,12 +271,12 @@ describe("useLLM", () => {
 
     it("should replace tool with same name on re-register", async () => {
       const mockClient = createMockClient();
-      const contextValue: LLMContextValue = {
+      const contextValue = createContextValue({
         client: mockClient as any,
         status: "ready",
-        config: {},
+        activeRuntime: "transformers",
         initialized: true,
-      };
+      });
 
       // Custom test component for this test
       function DuplicateRegisterTest() {
