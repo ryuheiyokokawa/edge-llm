@@ -12,7 +12,9 @@ jest.mock("../runtime/manager.js", () => {
     initialize: jest.fn().mockResolvedValue(undefined),
     chat: jest.fn().mockResolvedValue({ type: "content", text: "Hello" }),
     getStatus: jest.fn().mockReturnValue("ready"),
+    getType: jest.fn().mockReturnValue("transformers"),
     dispose: jest.fn(),
+    clearCache: jest.fn(),
   };
 
   return {
@@ -20,7 +22,9 @@ jest.mock("../runtime/manager.js", () => {
       initialize: jest.fn().mockResolvedValue(undefined),
       getRuntime: jest.fn().mockReturnValue(mockRuntime),
       getStatus: jest.fn().mockReturnValue("ready"),
-      dispose: jest.fn(),
+      getActiveRuntimeType: jest.fn().mockReturnValue("transformers"),
+      dispose: jest.fn().mockResolvedValue(undefined),
+      clearCache: jest.fn().mockResolvedValue(undefined),
     })),
   };
 });
@@ -69,12 +73,12 @@ describe("LLMClient", () => {
       await expect(failClient.initialize({})).rejects.toThrow();
     });
 
-    it("should not reinitialize if already initialized", async () => {
+    it("should handle reinitialize with new config", async () => {
       await client.initialize({});
-      await client.initialize({}); // Second call
+      await client.initialize({ preferredRuntime: "api" }); // Second call with different config
       
-      // RuntimeManager constructor should only be called once
-      expect(RuntimeManager).toHaveBeenCalledTimes(1);
+      // RuntimeManager is created each time to allow switching runtimes
+      expect(RuntimeManager).toHaveBeenCalledTimes(2);
     });
   });
 

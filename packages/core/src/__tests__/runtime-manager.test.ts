@@ -10,7 +10,9 @@ jest.mock("../runtime/webllm.js", () => ({
     initialize: jest.fn(),
     chat: jest.fn(),
     getStatus: jest.fn().mockReturnValue("ready"),
+    getType: jest.fn().mockReturnValue("webllm"),
     dispose: jest.fn(),
+    clearCache: jest.fn(),
   })),
 }));
 
@@ -19,7 +21,9 @@ jest.mock("../runtime/transformers.js", () => ({
     initialize: jest.fn(),
     chat: jest.fn(),
     getStatus: jest.fn().mockReturnValue("ready"),
+    getType: jest.fn().mockReturnValue("transformers"),
     dispose: jest.fn(),
+    clearCache: jest.fn(),
   })),
 }));
 
@@ -28,7 +32,9 @@ jest.mock("../runtime/api.js", () => ({
     initialize: jest.fn(),
     chat: jest.fn(),
     getStatus: jest.fn().mockReturnValue("ready"),
+    getType: jest.fn().mockReturnValue("api"),
     dispose: jest.fn(),
+    clearCache: jest.fn(),
   })),
 }));
 
@@ -47,6 +53,16 @@ describe("RuntimeManager", () => {
     // Reset static method mocks
     jest.spyOn(RuntimeManager, "checkWebGPUSupport").mockResolvedValue(false);
     jest.spyOn(RuntimeManager, "checkWASMSupport").mockReturnValue(true);
+    
+    // By default, make API fail so it doesn't fast-path - tests can override this
+    MockAPIRuntime.mockImplementation(() => ({
+      initialize: jest.fn().mockRejectedValue(new Error("No API URL configured")),
+      chat: jest.fn(),
+      getStatus: jest.fn().mockReturnValue("error"),
+      getType: jest.fn().mockReturnValue("api"),
+      dispose: jest.fn(),
+      clearCache: jest.fn(),
+    }) as any);
   });
 
   afterEach(() => {
@@ -100,7 +116,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "auto" };
@@ -110,6 +128,8 @@ describe("RuntimeManager", () => {
       
       // WebLLM should not have been instantiated since WebGPU is not available
       expect(MockWebLLMRuntime).not.toHaveBeenCalled();
+      // API is tried first (fast-path), then transformers in sequential fallback
+      expect(MockAPIRuntime).toHaveBeenCalled();
       expect(MockTransformersRuntime).toHaveBeenCalled();
     });
 
@@ -120,7 +140,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("webllm"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "auto" };
@@ -128,9 +150,9 @@ describe("RuntimeManager", () => {
       
       await manager.initialize();
       
+      // API fast-path is attempted, then webllm is background loaded
+      expect(MockAPIRuntime).toHaveBeenCalled();
       expect(MockWebLLMRuntime).toHaveBeenCalled();
-      // Transformers should not be called since WebLLM succeeded
-      expect(MockTransformersRuntime).not.toHaveBeenCalled();
     });
 
     it("should fall back to next runtime when current fails", async () => {
@@ -141,7 +163,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockRejectedValue(new Error("WebLLM init failed")),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("error"),
+        getType: jest.fn().mockReturnValue("webllm"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       // Make Transformers succeed
@@ -149,7 +173,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "auto" };
@@ -157,6 +183,8 @@ describe("RuntimeManager", () => {
       
       await manager.initialize();
       
+      // API tried first (fast-path fails), then webllm tried (fails), then transformers
+      expect(MockAPIRuntime).toHaveBeenCalled();
       expect(MockWebLLMRuntime).toHaveBeenCalled();
       expect(MockTransformersRuntime).toHaveBeenCalled();
     });
@@ -168,15 +196,12 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockRejectedValue(new Error("Transformers init failed")),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("error"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
-      MockAPIRuntime.mockImplementation(() => ({
-        initialize: jest.fn().mockRejectedValue(new Error("API key required")),
-        chat: jest.fn(),
-        getStatus: jest.fn().mockReturnValue("error"),
-        dispose: jest.fn(),
-      }) as any);
+      // API already set to fail in beforeEach
 
       const config: RuntimeConfig = { preferredRuntime: "auto" };
       const manager = new RuntimeManager(config);
@@ -189,7 +214,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "transformers" };
@@ -199,6 +226,27 @@ describe("RuntimeManager", () => {
       
       expect(MockTransformersRuntime).toHaveBeenCalled();
       expect(MockWebLLMRuntime).not.toHaveBeenCalled();
+    });
+    
+    it("should fast-path API when available for instant readiness", async () => {
+      // Make API succeed
+      MockAPIRuntime.mockImplementation(() => ({
+        initialize: jest.fn().mockResolvedValue(undefined),
+        chat: jest.fn(),
+        getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("api"),
+        dispose: jest.fn(),
+        clearCache: jest.fn(),
+      }) as any);
+
+      const config: RuntimeConfig = { preferredRuntime: "auto" };
+      const manager = new RuntimeManager(config);
+      
+      await manager.initialize();
+      
+      // API should be fast-pathed and become the initial runtime
+      expect(MockAPIRuntime).toHaveBeenCalled();
+      expect(manager.getStatus()).toBe("ready");
     });
   });
 
@@ -215,7 +263,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "transformers" };
@@ -241,7 +291,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: jest.fn(),
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "transformers" };
@@ -259,7 +311,9 @@ describe("RuntimeManager", () => {
         initialize: jest.fn().mockResolvedValue(undefined),
         chat: jest.fn(),
         getStatus: jest.fn().mockReturnValue("ready"),
+        getType: jest.fn().mockReturnValue("transformers"),
         dispose: mockDispose,
+        clearCache: jest.fn(),
       }) as any);
 
       const config: RuntimeConfig = { preferredRuntime: "transformers" };

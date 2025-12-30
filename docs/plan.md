@@ -616,12 +616,12 @@ function App() {
 - [x] Unit tests for core functionality
   - [x] ToolRegistry tests (Jest) - ✅ 8 tests passing
   - [x] ToolExecutor tests (Jest) - ✅ 6 tests passing
-  - [ ] ToolLoop tests (Jest) - Pending
+  - [x] ToolLoop tests (Jest) - ✅ 5 tests passing (packages/core/src/__tests__/tool-loop.test.ts)
   - [x] ToolValidator tests (Jest) - ✅ 7 tests passing
   - [ ] Runtime tests (Jest with mocks) - Pending
-- [ ] React component tests
-  - [ ] LLMProvider tests (RTL) - Pending
-  - [ ] useLLM hook tests (RTL) - Pending
+- [x] React component tests
+  - [x] LLMProvider tests (RTL) - ✅ Confirmed in packages/react/src/__tests__
+  - [x] useLLM hook tests (RTL) - ✅ Confirmed in packages/react/src/__tests__
 - [x] Example app implementation
   - [x] Basic chat interface - ✅ Full chat UI with message history
   - [x] Tool registration examples - ✅ 3 example tools (calculate, getCurrentTime, searchWeb)
@@ -640,7 +640,7 @@ function App() {
 
 ### Phase 3: Production Readiness
 
-- [ ] API fallback implementation (Ollama, OpenAI, etc.)
+- [x] API fallback implementation (Ollama, OpenAI, etc.)
 - [ ] Seamless hybrid inference (Start with API, background load local, hot-swap when ready)
 - [ ] Memory management (context pruning)
 - [ ] Tool execution sandboxing

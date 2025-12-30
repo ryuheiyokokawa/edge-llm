@@ -7,7 +7,6 @@ import type {
   ToolDefinition,
   ModelResponse,
   ChatOptions,
-  RuntimeType,
   RuntimeStatus,
   ServiceWorkerMessage,
   ServiceWorkerResponse,

@@ -13,7 +13,7 @@ import type {
   ContentResponse,
   ToolCall,
 } from "../types.js";
-import { RuntimeManager } from "./manager.js";
+// import { RuntimeManager } from "./manager.js";
 import { IndexedDBCache } from "../utils/indexeddb-cache.js";
 import { generateSystemPrompt } from "../prompt/system.js";
 import { extractJSON } from "../utils/json-parser.js";
@@ -55,7 +55,7 @@ export class TransformersRuntime extends BaseRuntime {
     this.log("[Transformers.js] Starting initialization...");
 
     // Check WASM support
-    const hasWASM = RuntimeManager.checkWASMSupport();
+    const hasWASM = typeof WebAssembly !== "undefined";
     if (!hasWASM) {
       this.log("[Transformers.js] WASM not available, skipping");
       throw new Error(

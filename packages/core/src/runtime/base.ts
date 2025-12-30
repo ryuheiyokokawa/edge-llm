@@ -5,6 +5,7 @@ import type {
   Runtime,
   RuntimeConfig,
   RuntimeStatus,
+  RuntimeType,
   Message,
   ToolDefinition,
   ModelResponse,
@@ -21,6 +22,8 @@ export abstract class BaseRuntime implements Runtime {
     tools: ToolDefinition[],
     options?: ChatOptions
   ): Promise<ModelResponse>;
+  
+  abstract getType(): RuntimeType;
 
   getStatus(): RuntimeStatus {
     return this.status;
