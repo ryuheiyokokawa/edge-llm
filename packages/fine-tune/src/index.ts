@@ -12,5 +12,14 @@ export { DatasetBuilder, FormatConverter } from "./dataset";
 // Synthetic data generation
 export { OllamaProvider, SyntheticGenerator } from "./synthetic";
 
+// Training
+export {
+  MLXTrainer,
+  DEFAULT_TRAINING_CONFIG,
+  type MLXTrainingConfig,
+  type MLXTrainingProgress,
+  type TrainingResult,
+} from "./training";
+
 // Re-export for convenience
 export type { ToolDefinition, Message, ToolCall } from "@edge-llm/core";
