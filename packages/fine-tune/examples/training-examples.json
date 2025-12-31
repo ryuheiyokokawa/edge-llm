@@ -1,0 +1,452 @@
+[
+  {
+    "userQuery": "What is 15 plus 27?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "15 + 27"}}],
+    "toolResponses": {"calculate": {"result": 42}},
+    "expectedFinalResponse": "15 plus 27 equals 42."
+  },
+  {
+    "userQuery": "Calculate 100 divided by 4",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "100 / 4"}}],
+    "toolResponses": {"calculate": {"result": 25}},
+    "expectedFinalResponse": "100 divided by 4 is 25."
+  },
+  {
+    "userQuery": "What's 8 times 9?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "8 * 9"}}],
+    "toolResponses": {"calculate": {"result": 72}},
+    "expectedFinalResponse": "8 times 9 equals 72."
+  },
+  {
+    "userQuery": "Can you calculate 50 minus 23 for me?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "50 - 23"}}],
+    "toolResponses": {"calculate": {"result": 27}},
+    "expectedFinalResponse": "50 minus 23 is 27."
+  },
+  {
+    "userQuery": "What is the square of 12?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "12 * 12"}}],
+    "toolResponses": {"calculate": {"result": 144}},
+    "expectedFinalResponse": "The square of 12 is 144."
+  },
+  {
+    "userQuery": "Calculate 2 to the power of 8",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "2 ** 8"}}],
+    "toolResponses": {"calculate": {"result": 256}},
+    "expectedFinalResponse": "2 to the power of 8 is 256."
+  },
+  {
+    "userQuery": "What's 1000 divided by 8?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "1000 / 8"}}],
+    "toolResponses": {"calculate": {"result": 125}},
+    "expectedFinalResponse": "1000 divided by 8 equals 125."
+  },
+  {
+    "userQuery": "Add 456 and 789",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "456 + 789"}}],
+    "toolResponses": {"calculate": {"result": 1245}},
+    "expectedFinalResponse": "456 plus 789 equals 1245."
+  },
+  {
+    "userQuery": "What is 15% of 200?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "200 * 0.15"}}],
+    "toolResponses": {"calculate": {"result": 30}},
+    "expectedFinalResponse": "15% of 200 is 30."
+  },
+  {
+    "userQuery": "Calculate the sum of 10, 20, and 30",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "10 + 20 + 30"}}],
+    "toolResponses": {"calculate": {"result": 60}},
+    "expectedFinalResponse": "The sum of 10, 20, and 30 is 60."
+  },
+  {
+    "userQuery": "Multiply 7 by 13",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "7 * 13"}}],
+    "toolResponses": {"calculate": {"result": 91}},
+    "expectedFinalResponse": "7 multiplied by 13 is 91."
+  },
+  {
+    "userQuery": "What's 999 minus 111?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "999 - 111"}}],
+    "toolResponses": {"calculate": {"result": 888}},
+    "expectedFinalResponse": "999 minus 111 equals 888."
+  },
+  {
+    "userQuery": "How much is 3.14 times 100?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "3.14 * 100"}}],
+    "toolResponses": {"calculate": {"result": 314}},
+    "expectedFinalResponse": "3.14 times 100 is 314."
+  },
+  {
+    "userQuery": "Divide 144 by 12",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "144 / 12"}}],
+    "toolResponses": {"calculate": {"result": 12}},
+    "expectedFinalResponse": "144 divided by 12 is 12."
+  },
+  {
+    "userQuery": "What is 5 factorial?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "5 * 4 * 3 * 2 * 1"}}],
+    "toolResponses": {"calculate": {"result": 120}},
+    "expectedFinalResponse": "5 factorial (5!) equals 120."
+  },
+  {
+    "userQuery": "What's the weather like in Tokyo?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Tokyo"}}],
+    "toolResponses": {"get_weather": {"temperature": 22, "condition": "sunny", "humidity": 65}},
+    "expectedFinalResponse": "The weather in Tokyo is sunny with a temperature of 22°C and humidity at 65%."
+  },
+  {
+    "userQuery": "Tell me the weather in New York",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "New York"}}],
+    "toolResponses": {"get_weather": {"temperature": 18, "condition": "cloudy", "humidity": 72}},
+    "expectedFinalResponse": "In New York, it's currently cloudy with a temperature of 18°C and 72% humidity."
+  },
+  {
+    "userQuery": "How's the weather in London right now?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "London"}}],
+    "toolResponses": {"get_weather": {"temperature": 12, "condition": "rainy", "humidity": 85}},
+    "expectedFinalResponse": "The weather in London is rainy with a temperature of 12°C and high humidity at 85%."
+  },
+  {
+    "userQuery": "What's the temperature in Paris?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Paris"}}],
+    "toolResponses": {"get_weather": {"temperature": 15, "condition": "partly cloudy", "humidity": 60}},
+    "expectedFinalResponse": "In Paris, it's partly cloudy with a temperature of 15°C."
+  },
+  {
+    "userQuery": "Is it hot in Sydney today?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Sydney"}}],
+    "toolResponses": {"get_weather": {"temperature": 28, "condition": "sunny", "humidity": 55}},
+    "expectedFinalResponse": "Yes, it's quite warm in Sydney! It's sunny with a temperature of 28°C."
+  },
+  {
+    "userQuery": "Check the weather in Berlin",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Berlin"}}],
+    "toolResponses": {"get_weather": {"temperature": 8, "condition": "cold", "humidity": 70}},
+    "expectedFinalResponse": "The weather in Berlin is cold with a temperature of 8°C and 70% humidity."
+  },
+  {
+    "userQuery": "What's the weather like in San Francisco in fahrenheit?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "San Francisco", "units": "fahrenheit"}}],
+    "toolResponses": {"get_weather": {"temperature": 65, "condition": "foggy", "humidity": 80}},
+    "expectedFinalResponse": "In San Francisco, it's foggy with a temperature of 65°F and 80% humidity."
+  },
+  {
+    "userQuery": "Tell me if it's raining in Seattle",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Seattle"}}],
+    "toolResponses": {"get_weather": {"temperature": 10, "condition": "rainy", "humidity": 90}},
+    "expectedFinalResponse": "Yes, it's raining in Seattle. The temperature is 10°C with very high humidity at 90%."
+  },
+  {
+    "userQuery": "How cold is it in Moscow?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Moscow"}}],
+    "toolResponses": {"get_weather": {"temperature": -5, "condition": "snowy", "humidity": 75}},
+    "expectedFinalResponse": "It's quite cold in Moscow at -5°C with snowy conditions."
+  },
+  {
+    "userQuery": "Weather forecast for Miami",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Miami"}}],
+    "toolResponses": {"get_weather": {"temperature": 30, "condition": "sunny", "humidity": 70}},
+    "expectedFinalResponse": "Miami is sunny and warm with a temperature of 30°C and 70% humidity."
+  },
+  {
+    "userQuery": "What's the weather in Singapore?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Singapore"}}],
+    "toolResponses": {"get_weather": {"temperature": 32, "condition": "humid", "humidity": 85}},
+    "expectedFinalResponse": "Singapore is humid with a temperature of 32°C and humidity at 85%."
+  },
+  {
+    "userQuery": "Check weather in Toronto",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Toronto"}}],
+    "toolResponses": {"get_weather": {"temperature": 5, "condition": "clear", "humidity": 50}},
+    "expectedFinalResponse": "Toronto has clear skies with a temperature of 5°C and 50% humidity."
+  },
+  {
+    "userQuery": "Is it sunny in Los Angeles?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Los Angeles"}}],
+    "toolResponses": {"get_weather": {"temperature": 25, "condition": "sunny", "humidity": 40}},
+    "expectedFinalResponse": "Yes! It's sunny in Los Angeles with a pleasant temperature of 25°C."
+  },
+  {
+    "userQuery": "What's the weather like in Mumbai?",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Mumbai"}}],
+    "toolResponses": {"get_weather": {"temperature": 35, "condition": "hot", "humidity": 75}},
+    "expectedFinalResponse": "Mumbai is hot with a temperature of 35°C and 75% humidity."
+  },
+  {
+    "userQuery": "Tell me the weather in Amsterdam",
+    "expectedToolCalls": [{"name": "get_weather", "arguments": {"location": "Amsterdam"}}],
+    "toolResponses": {"get_weather": {"temperature": 11, "condition": "windy", "humidity": 65}},
+    "expectedFinalResponse": "Amsterdam is windy with a temperature of 11°C and 65% humidity."
+  },
+  {
+    "userQuery": "Search for information about machine learning",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "machine learning"}}],
+    "toolResponses": {"search_web": {"results": ["Machine learning is a subset of AI...", "Introduction to ML algorithms..."]}},
+    "expectedFinalResponse": "I found information about machine learning. It's a subset of AI that enables systems to learn from data."
+  },
+  {
+    "userQuery": "Look up the latest news about climate change",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "latest news climate change"}}],
+    "toolResponses": {"search_web": {"results": ["Climate summit 2024...", "New renewable energy initiatives..."]}},
+    "expectedFinalResponse": "Here's what I found about climate change: Recent news includes coverage of the Climate Summit 2024 and new renewable energy initiatives."
+  },
+  {
+    "userQuery": "Find recipes for chocolate cake",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "chocolate cake recipes"}}],
+    "toolResponses": {"search_web": {"results": ["Easy chocolate cake recipe...", "Best moist chocolate cake..."]}},
+    "expectedFinalResponse": "I found some chocolate cake recipes for you, including an easy recipe and one for a moist chocolate cake."
+  },
+  {
+    "userQuery": "Search for Python programming tutorials",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "Python programming tutorials"}}],
+    "toolResponses": {"search_web": {"results": ["Learn Python basics...", "Advanced Python course..."]}},
+    "expectedFinalResponse": "I found Python tutorials ranging from basics to advanced courses."
+  },
+  {
+    "userQuery": "What are the top tourist attractions in Rome?",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "top tourist attractions Rome"}}],
+    "toolResponses": {"search_web": {"results": ["Colosseum", "Vatican City", "Trevi Fountain"]}},
+    "expectedFinalResponse": "The top tourist attractions in Rome include the Colosseum, Vatican City, and the Trevi Fountain."
+  },
+  {
+    "userQuery": "Search for healthy breakfast ideas",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "healthy breakfast ideas"}}],
+    "toolResponses": {"search_web": {"results": ["Overnight oats...", "Greek yogurt parfait...", "Avocado toast..."]}},
+    "expectedFinalResponse": "Some healthy breakfast ideas include overnight oats, Greek yogurt parfait, and avocado toast."
+  },
+  {
+    "userQuery": "Find information about electric vehicles",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "electric vehicles"}}],
+    "toolResponses": {"search_web": {"results": ["EV market trends...", "Best electric cars 2024..."]}},
+    "expectedFinalResponse": "I found information about electric vehicles including market trends and the best electric cars for 2024."
+  },
+  {
+    "userQuery": "Look up how to learn guitar",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "how to learn guitar"}}],
+    "toolResponses": {"search_web": {"results": ["Beginner guitar lessons...", "Guitar chord charts..."]}},
+    "expectedFinalResponse": "Here are some resources for learning guitar: beginner lessons and chord charts to get you started."
+  },
+  {
+    "userQuery": "Search for the best coffee shops in Seattle",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "best coffee shops Seattle"}}],
+    "toolResponses": {"search_web": {"results": ["Stumptown Coffee", "Victrola Coffee", "Elm Coffee Roasters"]}},
+    "expectedFinalResponse": "The best coffee shops in Seattle include Stumptown Coffee, Victrola Coffee, and Elm Coffee Roasters."
+  },
+  {
+    "userQuery": "Find reviews for the latest iPhone",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "latest iPhone reviews"}}],
+    "toolResponses": {"search_web": {"results": ["iPhone 15 Pro review...", "Comparison with Android..."]}},
+    "expectedFinalResponse": "I found reviews for the latest iPhone, including detailed reviews of the iPhone 15 Pro and comparisons with Android devices."
+  },
+  {
+    "userQuery": "Search for yoga exercises for beginners",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "yoga exercises beginners"}}],
+    "toolResponses": {"search_web": {"results": ["Basic yoga poses...", "15-minute morning routine..."]}},
+    "expectedFinalResponse": "Here are some yoga resources for beginners: basic poses and a 15-minute morning routine."
+  },
+  {
+    "userQuery": "Look up the history of the internet",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "history of the internet"}}],
+    "toolResponses": {"search_web": {"results": ["ARPANET origins...", "World Wide Web invention..."]}},
+    "expectedFinalResponse": "The history of the internet traces back to ARPANET and the invention of the World Wide Web."
+  },
+  {
+    "userQuery": "Find the top 3 results about renewable energy",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "renewable energy", "num_results": 3}}],
+    "toolResponses": {"search_web": {"results": ["Solar power...", "Wind energy...", "Hydroelectric..."]}},
+    "expectedFinalResponse": "The top 3 renewable energy sources are solar power, wind energy, and hydroelectric power."
+  },
+  {
+    "userQuery": "Search for best practices in software development",
+    "expectedToolCalls": [{"name": "search_web", "arguments": {"query": "best practices software development"}}],
+    "toolResponses": {"search_web": {"results": ["Code review guidelines...", "Testing strategies..."]}},
+    "expectedFinalResponse": "Software development best practices include code review guidelines and comprehensive testing strategies."
+  },
+  {
+    "userQuery": "What's on my calendar for tomorrow?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-16"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Team meeting", "time": "10:00"}, {"title": "Lunch with Sarah", "time": "12:30"}]}},
+    "expectedFinalResponse": "Tomorrow you have a team meeting at 10:00 and lunch with Sarah at 12:30."
+  },
+  {
+    "userQuery": "Show me my schedule for next week",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-22", "end_date": "2024-01-28"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Project deadline", "date": "2024-01-24"}, {"title": "Doctor appointment", "date": "2024-01-26"}]}},
+    "expectedFinalResponse": "Next week you have a project deadline on January 24th and a doctor appointment on January 26th."
+  },
+  {
+    "userQuery": "Do I have any meetings today?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-15"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Standup", "time": "09:00"}, {"title": "Client call", "time": "14:00"}]}},
+    "expectedFinalResponse": "Yes, you have two meetings today: a standup at 9:00 AM and a client call at 2:00 PM."
+  },
+  {
+    "userQuery": "What's scheduled for January 20th?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-20"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Birthday party", "time": "18:00"}]}},
+    "expectedFinalResponse": "On January 20th, you have a birthday party at 6:00 PM."
+  },
+  {
+    "userQuery": "Show my calendar for this weekend",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-20", "end_date": "2024-01-21"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Hiking trip", "date": "2024-01-20"}, {"title": "Movie night", "date": "2024-01-21"}]}},
+    "expectedFinalResponse": "This weekend you have a hiking trip on Saturday and movie night on Sunday."
+  },
+  {
+    "userQuery": "Am I free on Friday?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-19"}}],
+    "toolResponses": {"get_calendar_events": {"events": []}},
+    "expectedFinalResponse": "Yes, you're free on Friday with no scheduled events."
+  },
+  {
+    "userQuery": "What events do I have next month?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-02-01", "end_date": "2024-02-29"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Conference", "date": "2024-02-15"}, {"title": "Team retreat", "date": "2024-02-28"}]}},
+    "expectedFinalResponse": "In February, you have a conference on the 15th and a team retreat on the 28th."
+  },
+  {
+    "userQuery": "Check my schedule for Monday",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-22"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Weekly review", "time": "09:30"}, {"title": "Interview", "time": "11:00"}, {"title": "Lunch meeting", "time": "12:00"}]}},
+    "expectedFinalResponse": "On Monday you have a weekly review at 9:30, an interview at 11:00, and a lunch meeting at noon."
+  },
+  {
+    "userQuery": "Do I have any appointments on the 25th?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-25"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Dentist appointment", "time": "15:00"}]}},
+    "expectedFinalResponse": "You have a dentist appointment at 3:00 PM on the 25th."
+  },
+  {
+    "userQuery": "Show me my calendar for the first week of February",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-02-01", "end_date": "2024-02-07"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Sprint planning", "date": "2024-02-05"}]}},
+    "expectedFinalResponse": "The first week of February you have sprint planning on February 5th."
+  },
+  {
+    "userQuery": "What meetings do I have this afternoon?",
+    "expectedToolCalls": [{"name": "get_calendar_events", "arguments": {"start_date": "2024-01-15"}}],
+    "toolResponses": {"get_calendar_events": {"events": [{"title": "Design review", "time": "14:00"}, {"title": "1:1 with manager", "time": "16:00"}]}},
+    "expectedFinalResponse": "This afternoon you have a design review at 2:00 PM and a 1:1 with your manager at 4:00 PM."
+  },
+  {
+    "userQuery": "Send an email to john@example.com about the meeting",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "john@example.com", "subject": "About the meeting", "body": "Hi John, I wanted to follow up about the meeting."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg123"}},
+    "expectedFinalResponse": "I've sent the email to john@example.com about the meeting."
+  },
+  {
+    "userQuery": "Email sarah@company.com to confirm our lunch appointment",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "sarah@company.com", "subject": "Lunch Appointment Confirmation", "body": "Hi Sarah, I wanted to confirm our lunch appointment."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg124"}},
+    "expectedFinalResponse": "Done! I've sent a confirmation email to Sarah about your lunch appointment."
+  },
+  {
+    "userQuery": "Send a thank you email to recruiter@hiring.com",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "recruiter@hiring.com", "subject": "Thank You", "body": "Thank you for taking the time to interview me. I appreciated the opportunity to learn more about the position."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg125"}},
+    "expectedFinalResponse": "I've sent a thank you email to the recruiter."
+  },
+  {
+    "userQuery": "Email my team about the project update",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "team@company.com", "subject": "Project Update", "body": "Hi team, Here's a quick update on our project progress."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg126"}},
+    "expectedFinalResponse": "I've sent the project update email to your team."
+  },
+  {
+    "userQuery": "Send a reminder to boss@work.com about the deadline",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "boss@work.com", "subject": "Deadline Reminder", "body": "Hi, This is a reminder about the upcoming deadline."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg127"}},
+    "expectedFinalResponse": "I've sent a deadline reminder to your boss."
+  },
+  {
+    "userQuery": "Email support@service.com asking about my order status",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "support@service.com", "subject": "Order Status Inquiry", "body": "Hi, I would like to check on the status of my order. Could you please provide an update?"}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg128"}},
+    "expectedFinalResponse": "I've sent an inquiry to support about your order status."
+  },
+  {
+    "userQuery": "Send an apology email to client@business.com for the delay",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "client@business.com", "subject": "Apology for Delay", "body": "I sincerely apologize for the delay. We are working to resolve this as quickly as possible."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg129"}},
+    "expectedFinalResponse": "I've sent an apology email to the client regarding the delay."
+  },
+  {
+    "userQuery": "Email friend@personal.com to wish them happy birthday",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "friend@personal.com", "subject": "Happy Birthday!", "body": "Happy Birthday! Wishing you a wonderful day filled with joy and celebration!"}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg130"}},
+    "expectedFinalResponse": "Birthday wishes sent to your friend!"
+  },
+  {
+    "userQuery": "Send meeting notes to colleagues@work.com",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "colleagues@work.com", "subject": "Meeting Notes", "body": "Please find attached the notes from today's meeting."}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg131"}},
+    "expectedFinalResponse": "I've sent the meeting notes to your colleagues."
+  },
+  {
+    "userQuery": "Email vendor@supply.com to negotiate the price",
+    "expectedToolCalls": [{"name": "send_email", "arguments": {"to": "vendor@supply.com", "subject": "Price Negotiation Request", "body": "I would like to discuss the pricing for our recent order. Is there room for negotiation?"}}],
+    "toolResponses": {"send_email": {"success": true, "messageId": "msg132"}},
+    "expectedFinalResponse": "I've sent an email to the vendor about price negotiation."
+  },
+  {
+    "userQuery": "Remind me to call mom at 5pm",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Call mom", "datetime": "17:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem001"}},
+    "expectedFinalResponse": "I've set a reminder to call mom at 5:00 PM."
+  },
+  {
+    "userQuery": "Set a reminder to take medicine tomorrow morning",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Take medicine", "datetime": "tomorrow at 8:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem002"}},
+    "expectedFinalResponse": "I've set a reminder to take your medicine tomorrow morning."
+  },
+  {
+    "userQuery": "Remind me about the meeting in 30 minutes",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Meeting reminder", "datetime": "in 30 minutes"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem003"}},
+    "expectedFinalResponse": "I'll remind you about the meeting in 30 minutes."
+  },
+  {
+    "userQuery": "Create a reminder to pay bills on the 1st",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Pay bills", "datetime": "2024-02-01"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem004"}},
+    "expectedFinalResponse": "I've set a reminder to pay bills on the 1st."
+  },
+  {
+    "userQuery": "Set a reminder for my dentist appointment at 3pm on Friday",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Dentist appointment", "datetime": "Friday at 15:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem005"}},
+    "expectedFinalResponse": "Reminder set for your dentist appointment at 3 PM on Friday."
+  },
+  {
+    "userQuery": "Remind me to buy groceries this evening",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Buy groceries", "datetime": "this evening"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem006"}},
+    "expectedFinalResponse": "I'll remind you to buy groceries this evening."
+  },
+  {
+    "userQuery": "Create a reminder to submit the report by end of day",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Submit report", "datetime": "17:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem007"}},
+    "expectedFinalResponse": "Reminder set to submit the report by end of day."
+  },
+  {
+    "userQuery": "Set a reminder to water the plants every morning",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Water the plants", "datetime": "08:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem008"}},
+    "expectedFinalResponse": "I've set a daily reminder at 8 AM to water the plants."
+  },
+  {
+    "userQuery": "Remind me to check emails at 9am",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Check emails", "datetime": "09:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem009"}},
+    "expectedFinalResponse": "I'll remind you to check emails at 9 AM."
+  },
+  {
+    "userQuery": "Create a reminder to pick up dry cleaning tomorrow at noon",
+    "expectedToolCalls": [{"name": "create_reminder", "arguments": {"message": "Pick up dry cleaning", "datetime": "tomorrow at 12:00"}}],
+    "toolResponses": {"create_reminder": {"success": true, "reminderId": "rem010"}},
+    "expectedFinalResponse": "Reminder set to pick up dry cleaning tomorrow at noon."
+  }
+]
