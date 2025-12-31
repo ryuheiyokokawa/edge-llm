@@ -6,6 +6,9 @@
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "fine-tune": "./dist/cli/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -15,13 +18,15 @@
   },
   "files": [
     "dist",
+    "examples",
+    "python",
     "README.md"
   ],
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup src/index.ts src/cli/index.ts --format esm,cjs --dts",
     "dev": "tsup --watch",
     "test": "jest",
     "typecheck": "tsc --noEmit",
@@ -32,7 +37,9 @@
     "edge",
     "fine-tuning",
     "tool-calling",
-    "gemma"
+    "gemma",
+    "mlx",
+    "lora"
   ],
   "author": "Ryuhei Yokokawa",
   "license": "MIT",
