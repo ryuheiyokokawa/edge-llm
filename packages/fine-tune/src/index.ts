@@ -21,5 +21,12 @@ export {
   type TrainingResult,
 } from "./training";
 
+// Export
+export {
+  ModelExporter,
+  type ExportResult,
+  type ExportProgressCallback,
+} from "./export";
+
 // Re-export for convenience
 export type { ToolDefinition, Message, ToolCall } from "@edge-llm/core";
