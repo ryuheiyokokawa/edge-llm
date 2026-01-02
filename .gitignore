@@ -44,3 +44,9 @@ temp/
 # Service worker cache
 sw-cache/
 
+# Fine-tune package specific
+packages/fine-tune/python/.venv/
+packages/fine-tune/training-data/
+packages/fine-tune/training-output/
+packages/fine-tune/**/*.pyc
+packages/fine-tune/**/__pycache__/
