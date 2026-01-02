@@ -1,0 +1,129 @@
+[
+  {
+    "name": "calculate",
+    "description": "Evaluate a mathematical expression and return the result",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expression": {
+          "type": "string",
+          "description": "Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')"
+        }
+      },
+      "required": [
+        "expression"
+      ]
+    }
+  },
+  {
+    "name": "get_weather",
+    "description": "Get the current weather for a specified location",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "City name or location (e.g., 'Tokyo', 'New York')"
+        },
+        "units": {
+          "type": "string",
+          "description": "Temperature units",
+          "enum": [
+            "celsius",
+            "fahrenheit"
+          ]
+        }
+      },
+      "required": [
+        "location"
+      ]
+    }
+  },
+  {
+    "name": "search_web",
+    "description": "Search the web for information about a topic",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query"
+        },
+        "num_results": {
+          "type": "number",
+          "description": "Number of results to return (default: 5)"
+        }
+      },
+      "required": [
+        "query"
+      ]
+    }
+  },
+  {
+    "name": "get_calendar_events",
+    "description": "Get calendar events for a specified date range",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "description": "Start date in YYYY-MM-DD format"
+        },
+        "end_date": {
+          "type": "string",
+          "description": "End date in YYYY-MM-DD format"
+        }
+      },
+      "required": [
+        "start_date"
+      ]
+    }
+  },
+  {
+    "name": "send_email",
+    "description": "Send an email to a recipient",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {
+          "type": "string",
+          "description": "Recipient email address"
+        },
+        "subject": {
+          "type": "string",
+          "description": "Email subject line"
+        },
+        "body": {
+          "type": "string",
+          "description": "Email body content"
+        }
+      },
+      "required": [
+        "to",
+        "subject",
+        "body"
+      ]
+    }
+  },
+  {
+    "name": "create_reminder",
+    "description": "Create a reminder for a specific time",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Reminder message"
+        },
+        "datetime": {
+          "type": "string",
+          "description": "When to remind (e.g., '2024-01-15 09:00', 'tomorrow at 3pm')"
+        }
+      },
+      "required": [
+        "message",
+        "datetime"
+      ]
+    }
+  }
+]

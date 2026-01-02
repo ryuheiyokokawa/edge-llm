@@ -5,6 +5,7 @@
 import { spawn, type ChildProcess } from "child_process";
 import * as fs from "fs/promises";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { EventEmitter } from "events";
 import {
   DEFAULT_TRAINING_CONFIG,
@@ -12,6 +13,10 @@ import {
   type MLXTrainingProgress,
   type TrainingResult,
 } from "./TrainingConfig";
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Events emitted by MLXTrainer
@@ -56,8 +61,9 @@ export class MLXTrainer extends EventEmitter {
     // Default python path
     this.pythonPath = process.env.PYTHON_PATH ?? "python3";
     
-    // Script directory (relative to this file's compiled location)
-    this.scriptDir = path.join(__dirname, "..", "..", "python");
+    // Script directory - tsup bundles everything into dist/
+    // From dist/ go up one level to package root, then into python/
+    this.scriptDir = path.join(__dirname, "..", "python");
   }
 
   /**
@@ -80,10 +86,10 @@ export class MLXTrainer extends EventEmitter {
       try {
         const mlxCheck = await this.runCommand(this.pythonPath, [
           "-c",
-          "import mlx; print(mlx.__version__)",
+          "import mlx.core as mx; print('available')",
         ]);
-        result.mlxAvailable = true;
-        result.mlxVersion = mlxCheck.trim();
+        result.mlxAvailable = mlxCheck.includes("available");
+        result.mlxVersion = "available";
       } catch {
         result.mlxAvailable = false;
       }

@@ -15,16 +15,13 @@ Usage:
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
-from typing import Optional
 
 try:
     import mlx.core as mx
-    from mlx_lm import load, generate
-    from mlx_lm.tuner import train as lora_train
-    from mlx_lm.tuner.trainer import TrainingArgs
+    from mlx_lm import load
+    import subprocess
 except ImportError as e:
     print(f"Error: MLX packages not installed. Run: pip install mlx mlx-lm")
     print(f"Details: {e}")
@@ -79,12 +76,6 @@ def parse_args():
         default=2e-4,
         help="Learning rate",
     )
-    parser.add_argument(
-        "--weight-decay",
-        type=float,
-        default=0.01,
-        help="Weight decay",
-    )
     
     # LoRA configuration
     parser.add_argument(
@@ -97,13 +88,13 @@ def parse_args():
         "--lora-alpha",
         type=int,
         default=16,
-        help="LoRA alpha (scaling factor)",
+        help="LoRA alpha (scaling factor) - Note: MLX-LM calculates this internally",
     )
     parser.add_argument(
         "--lora-layers",
         type=int,
-        default=None,
-        help="Number of layers to apply LoRA (default: all layers)",
+        default=16,
+        help="Number of layers to apply LoRA (default: 16)",
     )
     
     # Advanced options
@@ -112,11 +103,6 @@ def parse_args():
         type=int,
         default=512,
         help="Maximum sequence length",
-    )
-    parser.add_argument(
-        "--grad-checkpoint",
-        action="store_true",
-        help="Use gradient checkpointing to reduce memory",
     )
     parser.add_argument(
         "--seed",
@@ -171,9 +157,7 @@ def save_training_config(output_dir: Path, args: argparse.Namespace):
         "epochs": args.epochs,
         "batch_size": args.batch_size,
         "learning_rate": args.learning_rate,
-        "weight_decay": args.weight_decay,
         "lora_rank": args.lora_rank,
-        "lora_alpha": args.lora_alpha,
         "lora_layers": args.lora_layers,
         "max_tokens": args.max_tokens,
         "seed": args.seed,
@@ -211,53 +195,38 @@ def main():
     config_path = save_training_config(output_path, args)
     print(f"   Config saved: {config_path}")
     
-    # Set random seed
-    mx.random.seed(args.seed)
-    
-    # Load model and tokenizer
-    print(f"\n🔄 Loading model: {args.model}")
-    try:
-        model, tokenizer = load(args.model)
-        print(f"   ✅ Model loaded successfully")
-    except Exception as e:
-        print(f"❌ Failed to load model: {e}")
-        sys.exit(1)
-    
-    # Configure LoRA
-    lora_config = {
-        "rank": args.lora_rank,
-        "alpha": args.lora_alpha,
-        "dropout": 0.0,
-        "scale": args.lora_alpha / args.lora_rank,
-    }
-    
-    if args.lora_layers:
-        lora_config["num_layers"] = args.lora_layers
+    # Calculate iterations from epochs
+    iters = args.epochs * data_info["train_count"] // args.batch_size
     
     print(f"\n🎯 LoRA Configuration:")
     print(f"   Rank: {args.lora_rank}")
-    print(f"   Alpha: {args.lora_alpha}")
-    print(f"   Scale: {lora_config['scale']:.4f}")
-    
-    # Training arguments
-    training_args = TrainingArgs(
-        batch_size=args.batch_size,
-        iters=args.epochs * data_info["train_count"] // args.batch_size,
-        val_batches=min(25, data_info["valid_count"]),
-        steps_per_report=10,
-        steps_per_eval=100,
-        steps_per_save=500,
-        adapter_path=str(output_path / "adapters"),
-        max_seq_length=args.max_tokens,
-        grad_checkpoint=args.grad_checkpoint,
-    )
+    print(f"   Layers: {args.lora_layers}")
     
     print(f"\n📊 Training Configuration:")
     print(f"   Batch size: {args.batch_size}")
     print(f"   Epochs: {args.epochs}")
-    print(f"   Total iterations: {training_args.iters}")
+    print(f"   Total iterations: {iters}")
     print(f"   Learning rate: {args.learning_rate}")
     print(f"   Max sequence length: {args.max_tokens}")
+    
+    # Build command for mlx_lm.lora
+    adapter_path = str(output_path / "adapters")
+    
+    cmd = [
+        sys.executable, "-m", "mlx_lm", "lora",
+        "--model", args.model,
+        "--train",
+        "--data", args.data,
+        "--iters", str(iters),
+        "--batch-size", str(args.batch_size),
+        "--learning-rate", str(args.learning_rate),
+        "--adapter-path", adapter_path,
+        "--num-layers", str(args.lora_layers),
+        "--max-seq-length", str(args.max_tokens),
+        "--seed", str(args.seed),
+        "--steps-per-report", "10",
+        "--steps-per-eval", str(iters // 3) if iters > 3 else "1",
+    ]
     
     # Start training
     print("\n" + "=" * 60)
@@ -265,24 +234,25 @@ def main():
     print("=" * 60 + "\n")
     
     try:
-        lora_train(
-            model=model,
-            tokenizer=tokenizer,
-            args=training_args,
-            train_dataset=data_info["train"],
-            val_dataset=data_info["valid"],
-            lora_config=lora_config,
-            learning_rate=args.learning_rate,
-            weight_decay=args.weight_decay,
-        )
+        # Run mlx_lm.lora as subprocess
+        result = subprocess.run(cmd, check=True)
         
-        print("\n" + "=" * 60)
-        print("✅ Training complete!")
-        print("=" * 60)
-        print(f"\n📁 Adapters saved to: {output_path / 'adapters'}")
-        
-    except Exception as e:
+        if result.returncode == 0:
+            print("\n" + "=" * 60)
+            print("✅ Training complete!")
+            print("=" * 60)
+            print(f"\n📁 Adapters saved to: {adapter_path}")
+        else:
+            print(f"\n❌ Training failed with exit code: {result.returncode}")
+            sys.exit(1)
+            
+    except subprocess.CalledProcessError as e:
         print(f"\n❌ Training failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
