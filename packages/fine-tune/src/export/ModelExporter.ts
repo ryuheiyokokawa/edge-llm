@@ -265,6 +265,101 @@ export class ModelExporter {
   }
 
   /**
+   * Export model to ONNX format for browser/edge deployment
+   * This fuses MLX LoRA adapters with the base model and converts to ONNX
+   */
+  async exportONNX(
+    adapterPath: string,
+    outputDir: string,
+    baseModel: string = "mlx-community/functiongemma-270m-it-4bit",
+    quantization: "int8" | "int4" | "fp16" | "none" = "none",
+    onProgress?: ExportProgressCallback
+  ): Promise<ExportResult> {
+    onProgress?.({
+      format: "onnx",
+      phase: "preparing",
+      message: "Preparing ONNX export...",
+    });
+
+    try {
+      // Create output directory
+      await fs.mkdir(outputDir, { recursive: true });
+
+      // Use the Python fusion and ONNX export script
+      const exportScript = path.join(this.scriptDir, "fuse_and_export_onnx.py");
+      
+      // Check if script exists
+      try {
+        await fs.access(exportScript);
+      } catch {
+        return {
+          success: false,
+          format: "onnx",
+          error: "ONNX export script not found at: " + exportScript,
+        };
+      }
+
+      onProgress?.({
+        format: "onnx",
+        phase: "converting",
+        message: "Fusing adapters and converting to ONNX (this may take a few minutes)...",
+      });
+
+      const fusedDir = path.join(outputDir, "fused");
+      const onnxDir = path.join(outputDir, "onnx");
+
+      const args =  [
+        exportScript,
+        "--adapter", adapterPath,
+        "--base-model", baseModel,
+        "--output", fusedDir,
+        "--onnx-output", onnxDir,
+      ];
+
+      if (quantization !== "none") {
+        args.push("--quantize", quantization);
+      }
+
+      await this.runCommand(this.pythonPath, args);
+
+      // Get size of ONNX directory
+      let totalSize = 0;
+      const files = await fs.readdir(onnxDir);
+      for (const file of files) {
+        const fileStat = await fs.stat(path.join(onnxDir, file));
+        if (fileStat.isFile()) {
+          totalSize += fileStat.size;
+        }
+      }
+
+      onProgress?.({
+        format: "onnx",
+        phase: "complete",
+        message: "ONNX export complete",
+      });
+
+      return {
+        success: true,
+        format: "onnx",
+        outputPath: onnxDir,
+        fileSize: totalSize,
+      };
+    } catch (error) {
+      onProgress?.({
+        format: "onnx",
+        phase: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      });
+
+      return {
+        success: false,
+        format: "onnx",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
    * Export model to multiple formats
    */
   async export(
@@ -302,12 +397,15 @@ export class ModelExporter {
           break;
 
         case "onnx":
-          // ONNX export is complex and requires additional dependencies
-          results.set("onnx", {
-            success: false,
-            format: "onnx",
-            error: "ONNX export not yet implemented",
-          });
+          const onnxDir = path.join(config.outputDir, "onnx");
+          const onnxResult = await this.exportONNX(
+            config.adapterPath,
+            onnxDir,
+            config.baseModel,
+            config.quantization as "int8" | "int4" | "fp16" | "none",
+            onProgress
+          );
+          results.set("onnx", onnxResult);
           break;
 
         default:

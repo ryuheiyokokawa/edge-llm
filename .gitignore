@@ -48,5 +48,6 @@ sw-cache/
 packages/fine-tune/python/.venv/
 packages/fine-tune/training-data/
 packages/fine-tune/training-output/
+packages/fine-tune/fused-model/
 packages/fine-tune/**/*.pyc
 packages/fine-tune/**/__pycache__/
