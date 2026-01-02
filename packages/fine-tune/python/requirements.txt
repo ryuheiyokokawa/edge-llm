@@ -2,5 +2,5 @@ mlx>=0.20.0
 mlx-lm>=0.19.0
 huggingface_hub>=0.20.0
 safetensors>=0.4.0
-optimum[exporters]
+optimum-onnx
 onnxruntime

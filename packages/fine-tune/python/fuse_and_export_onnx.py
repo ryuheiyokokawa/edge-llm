@@ -108,7 +108,7 @@ def fuse_adapters(adapter_path: str, base_model: str, output_path: str):
 
 def export_to_onnx(model_path: str, onnx_output: str, quantize: str):
     """
-    Export Hugging Face model to ONNX using optimum-cli
+    Export Hugging Face model to ONNX using optimum Python API
     """
     print("\n" + "=" * 60)
     print("Step 2: Exporting to ONNX")
@@ -117,39 +117,40 @@ def export_to_onnx(model_path: str, onnx_output: str, quantize: str):
     print(f"ONNX output: {onnx_output}")
     print(f"Quantization: {quantize}")
     
-    # Base export command
-    cmd = [
-        "optimum-cli", "export", "onnx",
-        "--model", model_path,
-        "--task", "text-generation-with-past",  # Use past key values for efficiency
-        onnx_output,
-    ]
-    
-    # Add quantization if specified
-    if quantize != "none":
-        cmd.extend(["--quantize", quantize])
-    
-    print(f"\nRunning: {' '.join(cmd)}\n")
-    
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-        print(result.stdout)
-        if result.stderr:
-            print("Stderr:", result.stderr)
+        from optimum.exporters.onnx import main_export
+        from pathlib import Path
+        
+        # Create output directory
+        Path(onnx_output).mkdir(parents=True, exist_ok=True)
+        
+        print(f"\nExporting model to ONNX...")
+        
+        # Use the Python API instead of CLI
+        # main_export expects:
+        # - model_name_or_path: str or Path
+        # - output: str or Path  
+        # - task:  str (optional, auto-detected)
+        # - opset: int (optional)
+        # - device: str (optional)
+        main_export(
+            model_name_or_path=model_path,
+            output=onnx_output,
+            task="text-generation-with-past",  # Optimized for chat
+        )
+        
         print(f"\n✅ ONNX model saved to: {onnx_output}")
         return True
-    except subprocess.CalledProcessError as e:
+        
+    except ImportError as e:
         print(f"\n❌ ONNX export failed: {e}")
-        print("Stdout:", e.stdout)
-        print("Stderr:", e.stderr)
-        
-        # Check if optimum-cli is installed
-        try:
-            subprocess.run(["optimum-cli", "--version"], capture_output=True, check=True)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            print("\n⚠️  optimum-cli not found. Install with:")
-            print("   pip install optimum[exporters,onnxruntime]")
-        
+        print("\n⚠️  optimum not installed correctly. Install with:")
+        print("   pip install optimum onnxruntime")
+        return False
+    except Exception as e:
+        print(f"\n❌ ONNX export failed: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 
