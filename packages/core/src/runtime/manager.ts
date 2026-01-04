@@ -98,7 +98,9 @@ export class RuntimeManager {
             }
         }
     } catch (e) {
-        this.log(`[RuntimeManager] Background initialization of ${type} failed, staying on current.`);
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        this.log(`[RuntimeManager] Background initialization of ${type} failed, staying on current. Error:`, errorMsg);
+        console.error(`[RuntimeManager] ${type} initialization error:`, e);
     }
   }
 

@@ -51,8 +51,8 @@
   "author": "Ryuhei Yokokawa",
   "license": "MIT",
   "dependencies": {
-    "@mlc-ai/web-llm": "^0.2.79",
-    "@huggingface/transformers": "^3.0.0"
+    "@huggingface/transformers": "^3.8.1",
+    "@mlc-ai/web-llm": "^0.2.79"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

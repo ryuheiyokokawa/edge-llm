@@ -84,7 +84,10 @@ export class TransformersRuntime extends BaseRuntime {
       // Configure environment if available
       if (env) {
         this.log("[Transformers.js] Configuring environment...");
-        env.allowLocalModels = false;
+        
+        // Allow local models if the model path starts with "/" or "http" (local server)
+        const isLocalPath = this.modelName.startsWith('/') || this.modelName.startsWith('http://localhost');
+        env.allowLocalModels = isLocalPath;
         env.allowRemoteModels = true; // Explicitly allow remote models for initial download
         
         // Use our custom IndexedDB cache to bypass Cache API limitations
@@ -103,6 +106,7 @@ export class TransformersRuntime extends BaseRuntime {
           allowLocalModels: env.allowLocalModels,
           allowRemoteModels: env.allowRemoteModels,
           useCustomCache: env.useCustomCache,
+          modelName: this.modelName,
         });
       }
     } catch (error) {
@@ -357,14 +361,52 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
     }
 
     // Generate
-    const output = await this.pipeline.model.generate({ ...inputs, ...options });
+    // We decode the input to text first, because running pipeline.model.generate() directly
+    // with ONNX models can fail with 'dims' errors due to shape mismatches in transformers.js v3.
+    // By passing text to the pipeline, we let it handle tokenization/generation internally.
+    let promptText = "";
+    try {
+        const inputIds = inputs.input_ids;
+        let tokenData;
+        if (inputIds.getData) {
+             tokenData = await inputIds.getData();
+        } else {
+             tokenData = inputIds.data;
+        }
+        
+        // Handle BigInt64Array (WASM/WebGPU) mapping to number[]
+        const tokensArray = Array.isArray(tokenData) 
+            ? tokenData 
+            : Array.from(tokenData).map(Number);
+            
+        promptText = this.tokenizer.decode(tokensArray, { skip_special_tokens: false });
+    } catch (e) {
+        console.warn("Failed to decode prompt inputs, falling back to empty string:", e);
+    }
     
-    // Decode - handle offset for prompt tokens
-    // Fallback: if dims are missing (mocked tests), just decode everything
-    const offset = inputs.input_ids?.dims?.[1] || 0;
-    const decoded = this.tokenizer.decode(output.slice(0, [offset, null]), { skip_special_tokens: false });
+    // Use the pipeline directly with text
+    // We remove redundant input_ids/attention_mask from options because we're passing promptText
+    // which the pipeline will tokenize itself. This prevents 'dims' errors in v3.
+    const { input_ids, attention_mask, ...cleanOptions } = options;
+    
+    // @ts-ignore - pipeline signature
+    const result = await this.pipeline(promptText, {
+        ...cleanOptions,
+        return_full_text: false, // We only want the new tokens
+        max_new_tokens: cleanOptions.max_new_tokens || 512,
+        do_sample: cleanOptions.do_sample ?? false,
+    });
 
-  this.log("[Transformers.js] Raw output:", decoded);
+    // Result is usually [{ generated_text: string }] for text-generation pipeline
+    // or sometimes an array of objects.
+    let decoded = "";
+    if (Array.isArray(result) && result.length > 0) {
+        decoded = result[0].generated_text || "";
+    } else if (typeof result === 'string') {
+        decoded = result;
+    }
+
+    this.log("[Transformers.js] Raw output:", decoded);
 
   // Parse and filter tool calls
   const format = this.config?.toolCallFormat || "xml";

@@ -43,7 +43,9 @@ function App() {
           debug: true,
           models: {
             webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
-            transformers: "onnx-community/functiongemma-270m-it-ONNX-GQA",
+            // Custom fine-tuned model (fallback handled by TransformersRuntime)
+            transformers: "/models/custom-functiongemma",
+            // transformers: "onnx-community/functiongemma-270m-it-ONNX",
             api: "llama3.2", // Default model for Ollama
           },
         }}
