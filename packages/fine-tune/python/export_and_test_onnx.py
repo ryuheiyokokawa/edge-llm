@@ -169,6 +169,57 @@ def test_with_transformers_js(model_path: Path, test_prompt: str = None) -> bool
         return True  # Don't fail the pipeline for test errors
 
 
+def prepare_for_browser(model_path: Path) -> bool:
+    """Prepare ONNX model for browser deployment.
+    
+    This function:
+    1. Moves model.onnx to onnx/ subdirectory (required by Transformers.js)
+    2. Copies reference tokenizer_config.json with embedded chat_template
+    3. Removes transformers.js_config.use_external_data_format from config.json
+    """
+    print(f"\n🌐 Preparing model for browser deployment...")
+    
+    try:
+        import json
+        
+        # Create onnx subdirectory and move model
+        onnx_dir = model_path / "onnx"
+        onnx_dir.mkdir(exist_ok=True)
+        
+        model_file = model_path / "model.onnx"
+        if model_file.exists():
+            shutil.move(str(model_file), str(onnx_dir / "model.onnx"))
+            print(f"   ✅ Moved model.onnx to onnx/ subdirectory")
+        
+        # Copy reference tokenizer_config.json with embedded chat_template
+        ref_tokenizer_config = Path(__file__).parent.parent / "examples" / "reference-tokenizer_config.json"
+        if ref_tokenizer_config.exists():
+            shutil.copy(str(ref_tokenizer_config), str(model_path / "tokenizer_config.json"))
+            print(f"   ✅ Copied reference tokenizer_config.json with chat_template")
+        else:
+            print(f"   ⚠️  Reference tokenizer_config.json not found at {ref_tokenizer_config}")
+        
+        # Remove transformers.js_config.use_external_data_format from config.json
+        config_path = model_path / "config.json"
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            
+            if 'transformers.js_config' in config:
+                del config['transformers.js_config']
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+                print(f"   ✅ Removed transformers.js_config from config.json")
+        
+        print(f"✅ Model prepared for browser deployment: {model_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Browser preparation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
 
 def test_onnx_inference(model_path: Path, test_prompt: str = None) -> bool:
     """Test ONNX model inference using onnxruntime."""
@@ -288,6 +339,10 @@ def main():
         "--test-node", action="store_true",
         help="Run Node.js Transformers.js test (requires npm dependencies)"
     )
+    parser.add_argument(
+        "--prepare-browser", action="store_true",
+        help="Prepare model for browser deployment (move to onnx/ subdir, copy chat_template)"
+    )
     
     args = parser.parse_args()
     
@@ -317,6 +372,11 @@ def main():
         if not args.no_test:
             if not test_onnx_inference(quant_output, args.test_prompt):
                 print("⚠️  Quantized inference test failed, but model may still work")
+    
+    # Prepare for browser deployment
+    if args.prepare_browser:
+        if not prepare_for_browser(final_model_path):
+            print("⚠️  Browser preparation failed")
     
     # Run Node.js Transformers.js test
     if args.test_node:

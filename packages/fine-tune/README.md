@@ -10,6 +10,8 @@ Fine-tuning system for FunctionGemma models targeting edge deployment.
 - 📦 **Model Export**: Export to safetensors, GGUF, or ONNX formats
 - 🔧 **CLI Tools**: Complete command-line interface for all operations
 
+> 💡 **AI Assistant?** See [PROMPT_RUN_PIPELINE.md](./PROMPT_RUN_PIPELINE.md) for prompts to run this pipeline.
+
 ## Quick Start
 
 ### 1. Install Dependencies

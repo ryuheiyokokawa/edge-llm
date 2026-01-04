@@ -183,13 +183,18 @@ def step_export_onnx(args) -> bool:
     print("STEP 6: Export to ONNX")
     print("=" * 60)
     
-    quantize_args = ["--quantize"] if args.quantize else []
-    
     cmd = [
         sys.executable, "python/export_and_test_onnx.py",
         "--input", str(args.fused_dir),
         "--output", str(args.onnx_dir),
-    ] + quantize_args
+    ]
+    
+    # Add quantization (FP16 by default for quality)
+    if args.quantize:
+        cmd.extend(["--quantize", "--quantize-type", "fp16"])
+    
+    # Always prepare for browser deployment
+    cmd.append("--prepare-browser")
     
     return run_cmd(cmd, cwd=args.base_dir) is not None
 
