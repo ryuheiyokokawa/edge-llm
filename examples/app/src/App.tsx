@@ -1,9 +1,17 @@
-import { useState } from "react";
 import { LLMProvider } from "@edge-llm/react";
 import { ChatInterface } from "./components/ChatInterface";
+import {
+  ChatStoreProvider,
+  useRuntimeState,
+  useRuntimeActions,
+} from "./store";
 
-function App() {
-  const [runtime, setRuntime] = useState<"webllm" | "transformers" | "api">("transformers");
+/**
+ * Inner component that reads runtime from store
+ */
+function AppContent() {
+  const { runtime } = useRuntimeState();
+  const { setRuntime } = useRuntimeActions();
 
   return (
     <div style={{ fontFamily: "system-ui, sans-serif" }}>
@@ -24,7 +32,11 @@ function App() {
             <select
               value={runtime}
               onChange={(e) => setRuntime(e.target.value as any)}
-              style={{ marginLeft: "0.5rem", padding: "0.25rem", borderRadius: "4px" }}
+              style={{
+                marginLeft: "0.5rem",
+                padding: "0.25rem",
+                borderRadius: "4px",
+              }}
             >
               <option value="transformers">Transformers.js (FunctionGemma)</option>
               <option value="webllm">WebLLM (Llama 3)</option>
@@ -43,10 +55,8 @@ function App() {
           debug: true,
           models: {
             webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
-            // Custom fine-tuned model (fallback handled by TransformersRuntime)
             transformers: "/models/custom-functiongemma",
-            // transformers: "onnx-community/functiongemma-270m-it-ONNX",
-            api: "llama3.2", // Default model for Ollama
+            api: "llama3.2",
           },
         }}
         enableServiceWorker={false}
@@ -54,6 +64,17 @@ function App() {
         <ChatInterface />
       </LLMProvider>
     </div>
+  );
+}
+
+/**
+ * App root with store provider
+ */
+function App() {
+  return (
+    <ChatStoreProvider>
+      <AppContent />
+    </ChatStoreProvider>
   );
 }
 

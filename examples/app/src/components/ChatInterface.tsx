@@ -1,41 +1,55 @@
 import { useChat } from "../hooks/useChat";
 import { exampleTools } from "../utils/tools";
+import {
+  useChatState,
+  useLLMState,
+  useInputActions,
+  useResetActions,
+} from "../store";
 
 export function ChatInterface() {
-  const {
-    messages,
-    input,
-    setInput,
-    handleSend,
-    loading,
-    error,
-    status,
-    initialized,
-    clearCache,
-  } = useChat();
+  // State from composite hooks
+  const { messages, input, loading, error, canSend } = useChatState();
+  const { llmStatus, llmInitialized } = useLLMState();
+
+  // Actions from composite hooks
+  const { setInput } = useInputActions();
+  const { clearMessages } = useResetActions();
+
+  // Async handlers from useChat hook
+  const { handleSend, clearCache } = useChat();
 
   return (
     <div style={styles.container}>
       <h1>Edge LLM Example App</h1>
 
       <div style={styles.status}>
-        <strong>Status:</strong> {status} {initialized ? "✓" : "..."}
-        <button 
-          onClick={async () => {
-            if (confirm("Clear all model caches? This will require re-downloading model files.")) {
-              try {
-                await clearCache();
-                alert("Caches cleared. The page will now reload.");
-                window.location.reload();
-              } catch (e) {
-                alert("Failed to clear cache: " + e);
+        <strong>Status:</strong> {llmStatus} {llmInitialized ? "✓" : "..."}
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button onClick={clearMessages} style={styles.secondaryButton}>
+            Clear Chat
+          </button>
+          <button
+            onClick={async () => {
+              if (
+                confirm(
+                  "Clear all model caches? This will require re-downloading model files."
+                )
+              ) {
+                try {
+                  await clearCache();
+                  alert("Caches cleared. The page will now reload.");
+                  window.location.reload();
+                } catch (e) {
+                  alert("Failed to clear cache: " + e);
+                }
               }
-            }
-          }}
-          style={styles.clearButton}
-        >
-          Clear Models Cache
-        </button>
+            }}
+            style={styles.clearButton}
+          >
+            Clear Models Cache
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -71,9 +85,7 @@ export function ChatInterface() {
             </div>
           ))
         )}
-        {loading && (
-          <div style={styles.emptyState}>Thinking...</div>
-        )}
+        {loading && <div style={styles.emptyState}>Thinking...</div>}
       </div>
 
       <div style={styles.inputContainer}>
@@ -83,20 +95,16 @@ export function ChatInterface() {
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={(e) => e.key === "Enter" && handleSend()}
           placeholder="Type your message..."
-          disabled={!initialized || loading}
+          disabled={!llmInitialized || loading}
           style={styles.input}
         />
         <button
           onClick={handleSend}
-          disabled={!initialized || loading || !input.trim()}
+          disabled={!canSend}
           style={{
             ...styles.button,
-            background:
-              initialized && !loading && input.trim() ? "#2196f3" : "#ccc",
-            cursor:
-              initialized && !loading && input.trim()
-                ? "pointer"
-                : "not-allowed",
+            background: canSend ? "#2196f3" : "#ccc",
+            cursor: canSend ? "pointer" : "not-allowed",
           }}
         >
           Send
@@ -131,6 +139,15 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  secondaryButton: {
+    padding: "0.25rem 0.5rem",
+    fontSize: "0.8rem",
+    background: "#666",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
   },
   clearButton: {
     padding: "0.25rem 0.5rem",
