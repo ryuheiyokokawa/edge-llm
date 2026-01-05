@@ -8,6 +8,7 @@
     "setup:win": "python -m venv python\\.venv && python\\.venv\\Scripts\\pip install -r python\\requirements.txt",
     "pipeline": ". python/.venv/bin/activate && python python/run_pipeline.py",
     "pipeline:quantize": ". python/.venv/bin/activate && python python/run_pipeline.py --quantize",
+    "test": ". python/.venv/bin/activate && python -m pytest python/test_generate_training_data.py -v",
     "test:onnx": "node test_onnx_node.mjs"
   },
   "keywords": [

@@ -531,7 +531,7 @@ function App() {
 
 ## Implementation Roadmap
 
-**Current Status:** Phase 1 and Phase 2 are complete. The framework architecture is in place with all types, interfaces, and abstractions. Runtime implementations (WebLLM, Transformers.js) are fully integrated. The React hooks and provider are functional, and the build system is configured. Phase 3.5 (Testing & Example App) is next to validate everything works together.
+**Current Status:** Phase 1, Phase 2, and Fine-Tuning are complete. The framework architecture is in place with all types, interfaces, and abstractions. Runtime implementations (WebLLM, Transformers.js) are fully integrated. The fine-tuning pipeline produces browser-ready ONNX models (~830MB FP16). The React hooks and provider are functional, and the build system is configured. Phase 3.5 (Testing & Example App) is mostly complete with 82 JS tests and 12 Python tests passing.
 
 ### Phase 1: Core Infrastructure (MVP)
 
@@ -636,12 +636,12 @@ function App() {
   - [ ] Working code examples in README - Pending
   - [ ] Common patterns and use cases - Pending
 
-**Status:** Core unit tests complete (21 tests passing). Example app fully functional with chat interface and multi-turn tool calling. Ready for integration testing and React component tests.
+**Status:** Core unit tests complete (82 JS tests + 12 Python tests passing). Example app fully functional with chat interface and multi-turn tool calling. Fine-tuned custom FunctionGemma model deployed and working.
 
 ### Phase 3: Production Readiness
 
 - [x] API fallback implementation (Ollama, OpenAI, etc.)
-- [ ] Seamless hybrid inference (Start with API, background load local, hot-swap when ready)
+- [x] Seamless hybrid inference (Start with API, background load local, hot-swap when ready) ✅ Implemented in RuntimeManager
 - [ ] Memory management (context pruning)
 - [ ] Tool execution sandboxing
 - [ ] Rate limiting & cost controls (API mode)
@@ -665,7 +665,12 @@ function App() {
 - [ ] Parallel tool execution optimization
 - [ ] Memory persistence (IndexedDB)
 - [ ] Collaborative filtering (share tool usage patterns)
-- [ ] Custom model fine-tuning guides
+- [x] Custom model fine-tuning ✅ `@edge-llm/fine-tune` package complete
+  - ✅ MLX LoRA training pipeline
+  - ✅ ONNX export with FP16 quantization
+  - ✅ Browser-ready model output (~830MB)
+  - ✅ Python unit tests (12 tests)
+  - ✅ npm scripts for easy invocation
 
 ---
 

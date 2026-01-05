@@ -143,13 +143,21 @@ packages/fine-tune/
 │   ├── requirements.txt        # Python dependencies
 │   ├── run_pipeline.py         # Main entry point
 │   ├── generate_training_data.py
-│   └── export_and_test_onnx.py
+│   ├── export_and_test_onnx.py
+│   └── test_generate_training_data.py  # Unit tests
 ├── examples/                   # Example training data
 │   ├── tool-definitions/       # Tool JSON schemas
 │   └── training-examples.json  # Training examples
 ├── training-data/              # Generated JSONL (gitignored)
 ├── training-output/            # Trained adapters (gitignored)
 └── working/                    # Pipeline outputs (gitignored)
+```
+
+## Development
+
+Run unit tests:
+```bash
+npm run test
 ```
 
 ## Requirements

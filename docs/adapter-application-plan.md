@@ -392,15 +392,19 @@ models?: {
 
 ## Recommended Approach
 
-**Phase 1: MVP (Merged Models)** ← START HERE
-1. Add Python export script for merged ONNX models
-2. Document workflow: fine-tune → merge → export → upload → use
-3. Test with example adapter in demo app
+**Phase 1: MVP (Merged Models)** ✅ COMPLETE
+1. ✅ Added `export_and_test_onnx.py` Python script
+2. ✅ Documented workflow: fine-tune → fuse → export ONNX → deploy
+3. ✅ Tested with example adapter in demo app (~830MB FP16 model)
 
-**Phase 2: Direct Adapter Support (Future)**
+**Phase 2: Direct Adapter Support (Future/Deferred)**
 1. Research/implement JS LoRA library
 2. Add adapter loading to TransformersRuntime
 3. Implement caching and optimization
+
+> **Note (Jan 2025):** We implemented the merged model approach. Direct runtime LoRA support
+> is deferred, but could become interesting when browsers ship with built-in models and
+> LoRA adapters become a way to customize them without full model downloads.
 
 ---
 
