@@ -1,305 +1,162 @@
 # @edge-llm/fine-tune
 
-Fine-tuning system for FunctionGemma models targeting edge deployment.
-
-## Features
-
-- 📝 **Dataset Preparation**: Convert training examples to FunctionGemma format
-- 🤖 **Synthetic Generation**: Generate training data using local LLMs (Ollama)
-- 🏋️ **LoRA Training**: Parameter-efficient fine-tuning with MLX (Apple Silicon) or CUDA
-- 📦 **Model Export**: Export to safetensors, GGUF, or ONNX formats
-- 🔧 **CLI Tools**: Complete command-line interface for all operations
+Python fine-tuning pipeline for FunctionGemma models, wrapped for npm users.
 
 > 💡 **AI Assistant?** See [PROMPT_RUN_PIPELINE.md](./PROMPT_RUN_PIPELINE.md) for prompts to run this pipeline.
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Setup Python Environment
 
 ```bash
-# Install Node.js dependencies
-npm install
-
-# Set up Python environment for training
 cd packages/fine-tune
-python3 -m venv python/.venv
+
+# macOS/Linux
+npm run setup
+
+# Windows
+npm run setup:win
+```
+
+This creates a Python virtual environment in `python/.venv/` and installs all dependencies.
+
+### 2. Run the Pipeline
+
+```bash
+# Full pipeline (generates data → trains → exports ONNX)
+npm run pipeline
+
+# With FP16 quantization (832MB, recommended for browser)
+npm run pipeline:quantize
+```
+
+The pipeline will:
+- Generate training data from `examples/`
+- Train LoRA adapters (100 iterations)
+- Fuse adapters into base model
+- Export to ONNX (optionally quantized)
+- Prepare for browser deployment
+
+### 3. Deploy to Example App
+
+```bash
+cp -r working/onnx-model-fp16/* ../../examples/app/public/models/custom-functiongemma/
+```
+
+## Custom Data
+
+### Using Your Own Tools & Examples
+
+```bash
+# Activate venv first
 source python/.venv/bin/activate
-pip install mlx mlx-lm  # For Apple Silicon
-# OR
-# pip install torch transformers peft  # For CUDA
+
+# Run with custom data
+python python/run_pipeline.py \
+  --tools-file path/to/my-tools.json \
+  --examples-file path/to/my-examples.json \
+  --quantize
 ```
 
-### 2. Prepare Training Data
-
-```bash
-npx fine-tune dataset \
-  --input examples/training-examples.json \
-  --output ./training-data \
-  --tools examples/tool-definitions/common-tools.json
-```
-
-### 3. Train Model
-
-```bash
-# Set Python path to use virtual environment
-export PYTHON_PATH=python/.venv/bin/python
-
-npx fine-tune train \
-  --data ./training-data \
-  --output ./training-output \
-  --epochs 3 \
-  --batch-size 4
-```
-
-### 4. Export Model
-
-```bash
-npx fine-tune export \
-  --model ./training-output/adapters \
-  --output ./models \
-  --format safetensors
-```
-
-## CLI Commands
-
-### `dataset` - Prepare Training Dataset
-
-Convert training examples to FunctionGemma format and split into train/valid/test sets.
-
-```bash
-fine-tune dataset [options]
-
-Options:
-  -i, --input <file>     Input file with training examples (JSON)
-  -o, --output <dir>     Output directory for dataset files
-  -t, --tools <file>     Tool definitions file (JSON)
-  --split <ratio>        Train/valid/test split ratio (default: 0.8,0.1,0.1)
-```
-
-### `train` - Train LoRA Adapter
-
-Fine-tune FunctionGemma using LoRA for parameter-efficient training.
-
-```bash
-fine-tune train [options]
-
-Options:
-  -d, --data <dir>       Training data directory
-  -o, --output <dir>     Output directory for trained adapters
-  -m, --model <name>     Base model (default: mlx-community/functiongemma-270m-it-4bit)
-  --epochs <n>           Number of training epochs (default: 3)
-  --batch-size <n>       Batch size (default: 4)
-  --lr <rate>            Learning rate (default: 0.0002)
-  --lora-rank <n>        LoRA rank (default: 8)
-  --check-env            Check Python environment and exit
-```
-
-### `export` - Export Trained Model
-
-Export model to various deployment formats.
-
-```bash
-fine-tune export [options]
-
-Options:
-  -m, --model <path>     Path to trained adapters or model
-  -o, --output <dir>     Output directory
-  -f, --format <fmt>     Output format: safetensors, gguf (default: safetensors)
-  -q, --quantization     Quantization: 4bit, 8bit, none (default: 4bit)
-  --info                 Show model information
-```
-
-### `validate` - Validate Model
-
-Check model files and environment configuration.
-
-```bash
-fine-tune validate [options]
-
-Options:
-  -m, --model <path>     Path to trained model or adapters
-  -t, --test <file>      Test dataset file (JSONL) - optional
-```
-
-## Python Environment Setup
-
-### Apple Silicon (MLX)
-
-```bash
-cd packages/fine-tune
-python3 -m venv python/.venv
-source python/.venv/bin/activate
-pip install mlx mlx-lm
-```
-
-Set the Python path when running CLI commands:
-```bash
-export PYTHON_PATH=python/.venv/bin/python
-# OR inline:
-PYTHON_PATH=python/.venv/bin/python npx fine-tune train --data ./data ...
-```
-
-### Linux/Windows (CUDA)
-
-```bash
-cd packages/fine-tune
-python3 -m venv python/.venv
-source python/.venv/bin/activate  # On Windows: python\.venv\Scripts\activate
-pip install torch transformers peft
-```
-
-## Training Data Format
-
-### Training Examples (JSON)
+### Tool Definitions Format
 
 ```json
-{
-  "userQuery": "What's 15 times 23?",
-  "expectedToolCalls": [
-    {
-      "name": "calculate",
-      "arguments": {
-        "expression": "15 * 23"
-      }
+[
+  {
+    "name": "calculate",
+    "description": "Evaluate a math expression",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "expression": {"type": "string", "description": "Math expression"}
+      },
+      "required": ["expression"]
     }
-  ],
-  "toolResponse": "345",
-  "assistantResponse": "15 times 23 equals 345."
-}
+  }
+]
 ```
 
-### Tool Definitions (JSON)
-
-Standard JSON Schema format compatible with `@edge-llm/core`:
+### Training Examples Format
 
 ```json
-{
-  "name": "calculate",
-  "description": "Evaluate a mathematical expression",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "expression": {
-        "type": "string",
-        "description": "Mathematical expression to evaluate"
-      }
-    },
-    "required": ["expression"]
+[
+  {
+    "userQuery": "What is 5 * 12?",
+    "expectedToolCalls": [{"name": "calculate", "arguments": {"expression": "5 * 12"}}]
   }
-}
+]
 ```
 
-## Example Workflow
+## Pipeline Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--iters` | 100 | Training iterations |
+| `--batch-size` | 2 | Training batch size |
+| `--quantize` | off | Enable ONNX quantization |
+| `--skip-training` | off | Skip training step |
+| `--skip-onnx` | off | Skip ONNX export |
 
 ```bash
-# 1. Set up Python environment (one-time)
-cd packages/fine-tune
-python3 -m venv python/.venv
-source python/.venv/bin/activate
-pip install mlx mlx-lm
+# Example: More training iterations
+python python/run_pipeline.py --iters 500 --quantize
 
-# 2. Prepare dataset
-export PYTHON_PATH=python/.venv/bin/python
-npx fine-tune dataset \
-  -i examples/training-examples.json \
-  -o ./data \
-  -t examples/tool-definitions/common-tools.json
-
-# 3. Check environment
-npx fine-tune train --check-env
-
-# 4. Train model (1 epoch for testing)
-npx fine-tune train \
-  -d ./data \
-  -o ./output \
-  --epochs 1 \
-  --batch-size 2
-
-# 5. Validate
-npx fine-tune validate -m ./output/adapters
-
-# 6. Export if needed
-npx fine-tune export \
-  -m ./output/adapters \
-  -o ./models \
-  -f safetensors
+# Example: Resume with existing training
+python python/run_pipeline.py --skip-training --quantize
 ```
 
-## TypeScript API
+## Outputs
 
-```typescript
-import { 
-  DatasetBuilder,
-  MLXTrainer,
-  ModelExporter 
-} from "@edge-llm/fine-tune";
-
-// Prepare dataset
-const builder = new DatasetBuilder({
-  tools: myTools,
-  outputDir: "./data",
-});
-builder.addExamples(examples);
-await builder.build();
-
-// Train
-const trainer = new MLXTrainer({
-  datasetPath: "./data",
-  outputPath: "./output",
-  epochs: 3,
-});
-
-trainer.on("progress", (progress) => {
-  console.log(`Epoch ${progress.epoch}, Loss: ${progress.loss}`);
-});
-
-const result = await trainer.train();
-
-// Export
-const exporter = new ModelExporter();
-await exporter.export({
-  adapterPath: "./output/adapters",
-  outputFormats: ["safetensors"],
-  outputDir: "./models",
-});
-```
-
-## Directory Structure
+After running the pipeline:
 
 ```
-packages/fine-tune/
-├── src/              # TypeScript source
-├── python/           # Python training scripts
-│   ├── .venv/        # Virtual environment (not in git)
-│   ├── train_lora.py
-│   └── requirements.txt
-├── examples/         # Example data
-│   ├── training-examples.json
-│   └── tool-definitions/
-├── training-data/    # Generated datasets (not in git)
-└── training-output/  # Trained models (not in git)
+working/
+├── fused-model/        # MLX model with adapters merged
+├── onnx-model/         # ONNX model (FP32, ~1.6GB)
+└── onnx-model-fp16/    # ONNX model (FP16, ~832MB) ← Use this!
 ```
+
+## Quantization Options
+
+| Type | Size | Quality | Browser Compatible |
+|------|------|---------|-------------------|
+| FP32 | 1.6GB | Best | ⚠️ Too large |
+| **FP16** | **832MB** | **Excellent** | **✅ Recommended** |
+| INT8 | 417MB | Degrades | ❌ Not recommended |
 
 ## Troubleshooting
 
-### MLX not available
-```bash
-# Ensure you're using the venv Python
-which python  # Should point to .venv
-pip install mlx mlx-lm
+| Issue | Solution |
+|-------|----------|
+| `npm run setup` fails | Run manually: `python3 -m venv python/.venv && source python/.venv/bin/activate && pip install -r python/requirements.txt` |
+| MLX not found | Ensure you're on Apple Silicon. MLX only works on M1/M2/M3 Macs. |
+| ONNX export fails | Install: `pip install optimum onnxruntime` |
+| Model too large | Use `--quantize` flag (FP16, ~832MB) |
+| Browser can't load | Ensure `onnx/` subdirectory structure exists |
+
+## File Structure
+
+```
+packages/fine-tune/
+├── python/                     # Core Python scripts
+│   ├── .venv/                  # Virtual environment (gitignored)
+│   ├── requirements.txt        # Python dependencies
+│   ├── run_pipeline.py         # Main entry point
+│   ├── generate_training_data.py
+│   └── export_and_test_onnx.py
+├── examples/                   # Example training data
+│   ├── tool-definitions/       # Tool JSON schemas
+│   └── training-examples.json  # Training examples
+├── training-data/              # Generated JSONL (gitignored)
+├── training-output/            # Trained adapters (gitignored)
+└── working/                    # Pipeline outputs (gitignored)
 ```
 
-### Sequences longer than max_seq_length
-Increase `--max-tokens` or pre-split your data:
-```bash
-fine-tune train --data ./data --max-tokens 1024
-```
+## Requirements
 
-### Out of memory
-Reduce batch size:
-```bash
-fine-tune train --data ./data --batch-size 1
-```
+- **Python 3.10+** with pip
+- **Apple Silicon Mac** (M1/M2/M3) for MLX training
+- **Node.js 18+** for ONNX testing
 
 ## License
 
