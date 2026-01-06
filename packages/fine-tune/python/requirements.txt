@@ -4,4 +4,4 @@ huggingface_hub>=0.20.0
 safetensors>=0.4.0
 optimum-onnx
 onnxruntime
-pytest>=7.0.0
+mlc-llm
