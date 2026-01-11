@@ -9,9 +9,10 @@ This script runs the full pipeline:
 4. Fuse adapters into base model
 5. Test fused model (post-fusion)
 6. Export to ONNX
-7. Test ONNX model
-8. Quantize ONNX (optional)
-9. Test quantized model
+7. Export to MLC (WebLLM)
+8. Test ONNX model
+9. Quantize ONNX (optional)
+10. Test quantized model
 
 Usage:
   # Full pipeline with defaults
@@ -199,6 +200,26 @@ def step_export_onnx(args) -> bool:
     return run_cmd(cmd, cwd=args.base_dir) is not None
 
 
+def step_export_mlc(args) -> bool:
+    """Step 7: Export to MLC."""
+    print("\n" + "=" * 60)
+    print("STEP 7: Export to MLC (WebLLM)")
+    print("=" * 60)
+    
+    cmd = [
+        sys.executable, "python/export_mlc.py",
+        "--input", str(args.fused_dir),
+        "--output", str(args.mlc_dir),
+    ]
+    
+    if args.mlc_quant:
+        cmd.extend(["--quantization", args.mlc_quant])
+    if args.compile_mlc:
+        cmd.append("--compile")
+        
+    return run_cmd(cmd, cwd=args.base_dir) is not None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Complete fine-tuning pipeline for FunctionGemma",
@@ -250,6 +271,9 @@ def main():
     parser.add_argument("--skip-training", action="store_true", help="Skip training")
     parser.add_argument("--skip-tests", action="store_true", help="Skip all tests")
     parser.add_argument("--skip-onnx", action="store_true", help="Skip ONNX export")
+    parser.add_argument("--skip-mlc", action="store_true", help="Skip MLC export")
+    parser.add_argument("--mlc-quant", type=str, default="q0f16", help="MLC quantization (default: q0f16 for quality)")
+    parser.add_argument("--compile-mlc", action="store_true", help="Compile MLC model to WASM (requires toolchain/Docker)")
     
     args = parser.parse_args()
     
@@ -259,6 +283,7 @@ def main():
     args.adapter_dir = args.base_dir / "training-output" / "adapters"
     args.fused_dir = args.output_dir / "fused-model"
     args.onnx_dir = args.output_dir / "onnx-model"
+    args.mlc_dir = args.output_dir / "mlc-model"
     
     print("=" * 60)
     print("🚀 FunctionGemma Fine-Tuning Pipeline")
@@ -277,6 +302,7 @@ def main():
         ("Fuse Model", step_fuse, args.skip_training),
         ("Test Fused", step_test_fused, args.skip_tests or args.skip_training),
         ("Export ONNX", step_export_onnx, args.skip_onnx),
+        ("Export MLC", step_export_mlc, args.skip_mlc),
     ]
     
     for name, step_fn, skip in steps:
@@ -298,6 +324,8 @@ def main():
         print(f"  ONNX model: {args.onnx_dir}")
         if args.quantize:
             print(f"  Quantized: {args.onnx_dir}-int8")
+    if not args.skip_mlc:
+        print(f"  MLC model: {args.mlc_dir}")
     
     return 0
 

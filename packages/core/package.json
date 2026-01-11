@@ -52,7 +52,7 @@
   "license": "MIT",
   "dependencies": {
     "@huggingface/transformers": "^3.8.1",
-    "@mlc-ai/web-llm": "^0.2.79"
+    "@mlc-ai/web-llm": "^0.2.80"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

@@ -10,7 +10,7 @@ const initialState: ChatState = {
   error: null,
   messages: [],
   conversationHistory: [],
-  runtime: "transformers",
+  runtime: "webllm",
   llmStatus: "idle",
   llmInitialized: false,
 };

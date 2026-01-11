@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLC Model Test - WebGPU</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #4ecdc4; }
+        .status { 
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        .status.loading { background: #2c3e50; }
+        .status.success { background: #27ae60; }
+        .status.error { background: #c0392b; }
+        #log {
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        #log .info { color: #3498db; }
+        #log .success { color: #2ecc71; }
+        #log .error { color: #e74c3c; }
+        #log .warn { color: #f39c12; }
+        .input-group {
+            margin: 20px 0;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #16213e;
+            color: #eee;
+            font-size: 14px;
+        }
+        button {
+            background: #4ecdc4;
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        button:hover { background: #3dbdb5; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #output {
+            background: #16213e;
+            border: 1px solid #4ecdc4;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>🧪 MLC WebGPU Model Test</h1>
+    
+    <div id="status" class="status loading">Initializing...</div>
+    
+    <div id="log"></div>
+    
+    <div class="input-group">
+        <label for="prompt"><strong>Test Prompt:</strong></label>
+        <input type="text" id="prompt" value="What is 5*12?" placeholder="Enter your test prompt...">
+    </div>
+    
+    <button id="runBtn" disabled onclick="runInference()">🚀 Run Inference</button>
+    
+    <h3>📝 Model Output:</h3>
+    <div id="output">Waiting for model to load...</div>
+
+    <script type="module">
+        import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+        
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        const runBtn = document.getElementById('runBtn');
+        const output = document.getElementById('output');
+        
+        function addLog(msg, type = 'info') {
+            const line = document.createElement('div');
+            line.className = type;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function setStatus(msg, type = 'loading') {
+            status.textContent = msg;
+            status.className = `status ${type}`;
+        }
+        
+        // Model configuration - point to local model
+        const MODEL_PATH = "./working/mlc-model-x86";
+        
+        // Check WebGPU support
+        async function checkWebGPU() {
+            if (!navigator.gpu) {
+                throw new Error("WebGPU is not supported in this browser. Try Chrome 113+ or Edge 113+.");
+            }
+            const adapter = await navigator.gpu.requestAdapter();
+            if (!adapter) {
+                throw new Error("No WebGPU adapter found. Check your GPU drivers.");
+            }
+            addLog("✅ WebGPU is available", "success");
+            return adapter;
+        }
+        
+        let engine = null;
+        
+        async function initModel() {
+            try {
+                setStatus("Checking WebGPU support...", "loading");
+                await checkWebGPU();
+                
+                setStatus("Loading MLC model...", "loading");
+                addLog("Loading model from: " + MODEL_PATH);
+                
+                // Create chat completion engine with local model
+                engine = await webllm.CreateMLCEngine(MODEL_PATH, {
+                    initProgressCallback: (progress) => {
+                        const pct = Math.round(progress.progress * 100);
+                        addLog(`Loading: ${progress.text} (${pct}%)`, "info");
+                        setStatus(`Loading model... ${pct}%`, "loading");
+                    }
+                });
+                
+                setStatus("✅ Model loaded successfully!", "success");
+                addLog("Model ready for inference!", "success");
+                runBtn.disabled = false;
+                output.textContent = "Model loaded! Enter a prompt and click 'Run Inference'.";
+                
+            } catch (error) {
+                setStatus(`❌ Error: ${error.message}`, "error");
+                addLog(`Error: ${error.message}`, "error");
+                console.error(error);
+            }
+        }
+        
+        window.runInference = async function() {
+            const prompt = document.getElementById('prompt').value;
+            if (!prompt || !engine) return;
+            
+            runBtn.disabled = true;
+            output.textContent = "Generating...";
+            addLog(`Prompt: "${prompt}"`, "info");
+            
+            try {
+                const startTime = performance.now();
+                
+                const response = await engine.chat.completions.create({
+                    messages: [
+                        { role: "user", content: prompt }
+                    ],
+                    max_tokens: 128,
+                    temperature: 0.0
+                });
+                
+                const endTime = performance.now();
+                const duration = ((endTime - startTime) / 1000).toFixed(2);
+                
+                const text = response.choices[0].message.content;
+                output.textContent = text;
+                addLog(`✅ Generated in ${duration}s`, "success");
+                
+            } catch (error) {
+                output.textContent = `Error: ${error.message}`;
+                addLog(`Error: ${error.message}`, "error");
+            } finally {
+                runBtn.disabled = false;
+            }
+        };
+        
+        // Initialize on page load
+        initModel();
+    </script>
+</body>
+</html>
