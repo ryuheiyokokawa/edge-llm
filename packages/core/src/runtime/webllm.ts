@@ -45,18 +45,54 @@ export class WebLLMRuntime implements Runtime {
         }
         const modelId = this.config.modelId || defaultConfig.modelId!;
 
-        this.engine = await webllm.CreateMLCEngine(modelId, {
+        // Check if this is a local model path (starts with /)
+        const isLocalModel = modelId.startsWith("/");
+        
+        let engineConfig: webllm.MLCEngineConfig = {
           initProgressCallback: (report) => {
             if (signal?.aborted) {
-              // We can't easily stop WebLLM's internal fetch, 
-              // but we can at least stop logging and throw next chance
               return;
             }
             if (this.config.debug) {
               console.log("[WebLLM] Progress:", report.text);
             }
           },
-        });
+        };
+
+        if (isLocalModel) {
+          // For local models, create a custom model record
+          // WebLLM needs absolute URLs, so prepend the origin
+          const origin = typeof window !== 'undefined' ? window.location.origin : '';
+          const absoluteModelUrl = origin + modelId + '/';
+          const customModelId = "custom-functiongemma-mlc";
+          
+          if (this.config.debug) {
+            console.log("[WebLLM] Loading local model from:", absoluteModelUrl);
+          }
+
+          // Create custom app config with our local model
+          // Note: WebLLM's cleanModelUrl() adds resolve/main/ to URLs (HuggingFace pattern)
+          // So our files must be in that subdirectory
+          const customAppConfig: webllm.AppConfig = {
+            model_list: [
+              {
+                model: absoluteModelUrl,  // WebLLM will add resolve/main/
+                model_id: customModelId,
+                // model_lib must point to actual WASM location (with resolve/main/)
+                model_lib: absoluteModelUrl + "resolve/main/model-webgpu.wasm",
+                overrides: {
+                  context_window_size: 8192,
+                },
+              },
+            ],
+          };
+
+          engineConfig.appConfig = customAppConfig;
+          this.engine = await webllm.CreateMLCEngine(customModelId, engineConfig);
+        } else {
+          // For prebuilt models, use the model ID directly
+          this.engine = await webllm.CreateMLCEngine(modelId, engineConfig);
+        }
 
         if (signal?.aborted) {
           if (this.engine) {
@@ -192,8 +228,7 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
       const format = this.config?.toolCallFormat || "json";
       
       if (format === "xml") {
-        // FunctionGemma style XML parsing logic (reused from transformers.ts logic concept)
-        // Allow both <tag> and (tag) because some models hallucinate parentheses
+        // FunctionGemma style XML parsing logic
         const functionCallPattern = /[<(]start_function_call[>)](?:call:)?([a-zA-Z0-9_-]+)\{(.*?)\}[<(]end_function_call[>)]/gs;
         let match = functionCallPattern.exec(content);
         if (match) {
@@ -206,7 +241,7 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
                return {
                  type: "tool_calls",
                  calls: [{ id: `call_${Date.now()}`, name: toolName, arguments: args }],
-                 text: content, // Pass original text for history preservation
+                 text: content,
                };
              } catch (e) {
                console.warn("[WebLLM] Failed to parse XML-like args:", argsString, e);
@@ -228,7 +263,7 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
                 arguments: json.arguments,
               },
             ],
-            text: content, // Pass original text for history preservation
+            text: content,
           };
         }
       }

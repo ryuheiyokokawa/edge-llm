@@ -39,7 +39,7 @@ function AppContent() {
               }}
             >
               <option value="transformers">Transformers.js (FunctionGemma)</option>
-              <option value="webllm">WebLLM (Llama 3)</option>
+              <option value="webllm">WebLLM (FunctionGemma-MLC)</option>
               <option value="api">API (Ollama Bridge)</option>
             </select>
           </label>
@@ -51,10 +51,13 @@ function AppContent() {
         config={{
           preferredRuntime: runtime,
           apiUrl: "http://localhost:3001/v1/chat/completions",
-          toolCallFormat: runtime === "transformers" ? "xml" : "json",
+          // Use XML format for both FunctionGemma runtimes
+          toolCallFormat: runtime === "api" ? "json" : "xml",
           debug: true,
           models: {
-            webllm: "Llama-3-8B-Instruct-q4f16_1-MLC",
+            // Custom FunctionGemma compiled to MLC/WebGPU format
+            webllm: "/models/custom-functiongemma-mlc",
+            // Custom FunctionGemma in ONNX format for Transformers.js
             transformers: "/models/custom-functiongemma",
             api: "llama3.2",
           },

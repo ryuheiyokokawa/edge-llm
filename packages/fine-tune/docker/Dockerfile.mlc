@@ -33,7 +33,7 @@ WORKDIR /opt/mlc-llm/3rdparty/tvm
 RUN mkdir build && cd build && \
     cp ../cmake/config.cmake . && \
     echo "set(USE_LLVM ON)" >> config.cmake && \
-    cmake .. && make -j$(nproc)
+    cmake .. && make -j1
 
 # Build MLC LLM
 WORKDIR /opt/mlc-llm
