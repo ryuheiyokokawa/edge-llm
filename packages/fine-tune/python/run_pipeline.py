@@ -189,9 +189,9 @@ def step_export_onnx(args) -> bool:
         "--output", str(args.onnx_dir),
     ]
     
-    # Add quantization (FP16 by default for quality)
+    # Add quantization (Q4-WebGPU for browser compatibility)
     if args.quantize:
-        cmd.extend(["--quantize", "--quantize-type", "fp16"])
+        cmd.extend(["--quantize", "--quantize-type", "q4-webgpu"])
     
     # Always prepare for browser deployment
     cmd.append("--prepare-browser")
@@ -242,7 +242,7 @@ def main():
     )
     parser.add_argument(
         "--quantize", "-q", action="store_true",
-        help="Quantize ONNX model (default: FP16 for quality)"
+        help="Quantize ONNX model (Q4-WebGPU for browser, ~800MB)"
     )
     
     # Skip options
@@ -297,7 +297,7 @@ def main():
     if not args.skip_onnx:
         print(f"  ONNX model: {args.onnx_dir}")
         if args.quantize:
-            print(f"  Quantized: {args.onnx_dir}-int8")
+            print(f"  Quantized: {args.onnx_dir}-q4-webgpu")
     
     return 0
 
