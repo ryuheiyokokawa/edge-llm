@@ -17,7 +17,7 @@ This will:
 - Generate training data from examples/
 - Train LoRA adapters (100 iterations)
 - Fuse adapters into base model
-- Export to ONNX with FP16 quantization (~830MB)
+- Export to ONNX with Q4-WebGPU quantization (~800MB)
 - Prepare for browser deployment
 
 Wait for each step to complete before proceeding.
@@ -49,7 +49,7 @@ Steps:
 ```
 After the pipeline completes, deploy the model to the example app:
 
-cp -r working/onnx-model-fp16/* ../../examples/app/public/models/custom-functiongemma/
+cp -r working/onnx-model-q4-webgpu/* ../../examples/app/public/models/custom-functiongemma/
 ```
 
 ---
@@ -60,7 +60,7 @@ cp -r working/onnx-model-fp16/* ../../examples/app/public/models/custom-function
 |--------|-------------|
 | `npm run setup` | Create venv and install Python dependencies |
 | `npm run pipeline` | Run full pipeline (no quantization) |
-| `npm run pipeline:quantize` | Run full pipeline with FP16 quantization |
+| `npm run pipeline:quantize` | Run full pipeline with Q4-WebGPU quantization |
 | `npm run test:onnx` | Test ONNX model with Node.js |
 
 ---
@@ -71,5 +71,5 @@ cp -r working/onnx-model-fp16/* ../../examples/app/public/models/custom-function
 |-------|----------|
 | `npm run setup` fails | Run manually: `python3 -m venv python/.venv && source python/.venv/bin/activate && pip install -r python/requirements.txt` |
 | ONNX export fails | Ensure `optimum` and `onnxruntime` are installed |
-| Model too large | Already using FP16 (~830MB), can try INT8 but quality degrades |
+| Model too large | Already using Q4-WebGPU (~800MB), can try FP16 if quality issues |
 | Browser can't load | Ensure `onnx/` subdirectory structure and proper `tokenizer_config.json` |

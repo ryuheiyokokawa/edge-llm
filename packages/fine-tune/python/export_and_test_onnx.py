@@ -49,6 +49,96 @@ def export_to_onnx(input_path: Path, output_path: Path) -> bool:
         return False
 
 
+def quantize_q4_webgpu(input_path: Path, output_path: Path) -> bool:
+    """Quantize ONNX model to Q4 format optimized for WebGPU.
+    
+    Uses MatMul4BitsQuantizer with settings optimized for browser/WebGPU:
+    - block_size=32 (standard for WebGPU)
+    - is_symmetric=True (better for WebGPU kernels)
+    - accuracy_level=0 (basic quantization)
+    - Saves as embedded monolith (no external data files)
+    
+    This produces models that work with Transformers.js WebGPU backend.
+    """
+    print(f"\n🔢 Quantizing ONNX model to Q4-WebGPU format...")
+    
+    try:
+        import onnx
+        from onnxruntime.quantization.matmul_4bits_quantizer import MatMul4BitsQuantizer
+        
+        # Find the model.onnx file
+        model_file = input_path / "model.onnx"
+        if not model_file.exists():
+            # Check onnx subdirectory
+            onnx_subdir = input_path / "onnx"
+            if onnx_subdir.exists():
+                model_file = onnx_subdir / "model.onnx"
+        if not model_file.exists():
+            model_file = input_path / "decoder_model.onnx"
+        
+        if not model_file.exists():
+            print(f"❌ Could not find model.onnx in {input_path}")
+            return False
+        
+        print(f"   Loading: {model_file}")
+        
+        # Create output directory
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Copy all non-model files (config, tokenizer, etc.)
+        for f in input_path.iterdir():
+            if f.is_file() and f.suffix != '.onnx' and f.name != model_file.name:
+                shutil.copy(f, output_path / f.name)
+        
+        # Load the ONNX model
+        model = onnx.load(str(model_file))
+        
+        # Apply Q4 quantization with WebGPU-optimized settings
+        print(f"   Applying MatMul4BitsQuantizer (block_size=32, symmetric)...")
+        quantizer = MatMul4BitsQuantizer(
+            model=model,
+            block_size=32,
+            is_symmetric=True,
+            accuracy_level=0,
+        )
+        quantizer.process()
+        
+        # Save as embedded monolith (CRITICAL: no external data)
+        # This is required for browser serving
+        output_model = output_path / "model.onnx"
+        print(f"   Saving as embedded monolith (no external data)...")
+        
+        try:
+            # Try using optimum's check_and_save_model for best compatibility
+            from optimum.onnx.graph_transformations import check_and_save_model
+            check_and_save_model(quantizer.model.model, str(output_model))
+        except ImportError:
+            # Fall back to onnx.save with explicit no external data
+            onnx.save_model(
+                quantizer.model.model,
+                str(output_model),
+                save_as_external_data=False
+            )
+        
+        # Report size reduction
+        orig_size = model_file.stat().st_size / (1024 * 1024)
+        quant_size = output_model.stat().st_size / (1024 * 1024)
+        reduction = (1 - quant_size / orig_size) * 100
+        
+        print(f"✅ Q4-WebGPU quantization complete: {quant_size:.1f}MB (was {orig_size:.1f}MB, {reduction:.0f}% reduction)")
+        return True
+        
+    except ImportError as e:
+        print(f"❌ Missing dependency for Q4-WebGPU quantization: {e}")
+        print("   Install with: pip install onnxruntime optimum")
+        return False
+    except Exception as e:
+        print(f"❌ Q4-WebGPU quantization failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def quantize_onnx(input_path: Path, output_path: Path, quant_type: str = "int8") -> bool:
     """Quantize ONNX model to specified type.
     
@@ -56,8 +146,13 @@ def quantize_onnx(input_path: Path, output_path: Path, quant_type: str = "int8")
     - int8: Dynamic INT8 quantization (smallest, may lose quality)
     - fp16: Half-precision float (good balance)
     - q4: 4-bit quantization (experimental, requires onnx-matmul-4bit)
+    - q4-webgpu: 4-bit quantization optimized for WebGPU (RECOMMENDED)
     """
     print(f"\n🔢 Quantizing ONNX model to {quant_type.upper()}...")
+    
+    # Handle q4-webgpu separately with dedicated function
+    if quant_type == "q4-webgpu":
+        return quantize_q4_webgpu(input_path, output_path)
     
     try:
         # Find the model.onnx file
@@ -95,6 +190,7 @@ def quantize_onnx(input_path: Path, output_path: Path, quant_type: str = "int8")
         elif quant_type == "q4":
             # Q4 requires MatMulNBits which may not be available in all ONNX runtimes
             print("⚠️  Q4 quantization is experimental and may not work in all browsers")
+            print("   Consider using --quantize-type q4-webgpu for better browser compatibility")
             from onnxruntime.quantization import quantize_dynamic, QuantType
             try:
                 quantize_dynamic(
@@ -175,7 +271,9 @@ def prepare_for_browser(model_path: Path) -> bool:
     This function:
     1. Moves model.onnx to onnx/ subdirectory (required by Transformers.js)
     2. Copies reference tokenizer_config.json with embedded chat_template
-    3. Removes transformers.js_config.use_external_data_format from config.json
+    3. Copies tokenizer.model if present (required for some tokenizers)
+    4. Removes transformers.js_config.use_external_data_format from config.json
+    5. Verifies all required files are present
     """
     print(f"\n🌐 Preparing model for browser deployment...")
     
@@ -199,17 +297,50 @@ def prepare_for_browser(model_path: Path) -> bool:
         else:
             print(f"   ⚠️  Reference tokenizer_config.json not found at {ref_tokenizer_config}")
         
+        # Copy tokenizer.model if present in source (required for some tokenizers)
+        ref_tokenizer_model = Path(__file__).parent.parent / "examples" / "reference-tokenizer.model"
+        if ref_tokenizer_model.exists():
+            shutil.copy(str(ref_tokenizer_model), str(model_path / "tokenizer.model"))
+            print(f"   ✅ Copied reference tokenizer.model")
+        
         # Remove transformers.js_config.use_external_data_format from config.json
         config_path = model_path / "config.json"
         if config_path.exists():
             with open(config_path, 'r') as f:
                 config = json.load(f)
             
+            modified = False
             if 'transformers.js_config' in config:
                 del config['transformers.js_config']
+                modified = True
+                print(f"   ✅ Removed transformers.js_config from config.json")
+            
+            # Ensure use_cache is true (required for generation)
+            if config.get('use_cache') == False:
+                config['use_cache'] = True
+                modified = True
+                print(f"   ✅ Set use_cache=true in config.json")
+            
+            if modified:
                 with open(config_path, 'w') as f:
                     json.dump(config, f, indent=2)
-                print(f"   ✅ Removed transformers.js_config from config.json")
+        
+        # Verify required files
+        required_files = ['config.json', 'tokenizer.json', 'tokenizer_config.json']
+        onnx_required = ['model.onnx']
+        
+        missing = []
+        for f in required_files:
+            if not (model_path / f).exists():
+                missing.append(f)
+        for f in onnx_required:
+            if not (onnx_dir / f).exists():
+                missing.append(f"onnx/{f}")
+        
+        if missing:
+            print(f"   ⚠️  Missing files: {', '.join(missing)}")
+        else:
+            print(f"   ✅ All required files present")
         
         print(f"✅ Model prepared for browser deployment: {model_path}")
         return True
@@ -320,8 +451,8 @@ def main():
         help="Quantize model to INT8 (recommended for browser deployment)"
     )
     parser.add_argument(
-        "--quantize-type", type=str, choices=["int8", "fp16", "q4"], default="int8",
-        help="Quantization type: int8 (default), fp16 (half precision), q4 (4-bit)"
+        "--quantize-type", type=str, choices=["int8", "fp16", "q4", "q4-webgpu"], default="q4-webgpu",
+        help="Quantization type: q4-webgpu (default, recommended), fp16, int8, q4 (legacy)"
     )
     parser.add_argument(
         "--quantize-output", type=Path,

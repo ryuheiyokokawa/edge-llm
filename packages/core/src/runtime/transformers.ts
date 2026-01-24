@@ -171,7 +171,8 @@ export class TransformersRuntime extends BaseRuntime {
       this.lastProgressMap.clear(); // Reset for pipeline
       const pipelineOptions: any = {
         // device: "wasm", // Removed to allow WebGPU (auto-detect)
-        dtype: "fp32", // Switch to full precision (1.1GB) for maximum fidelity
+        //dtype: "fp32", // Switch to full precision (1.1GB) for maximum fidelity
+        device: "webgpu", // Use WebGPU for maximum performance
         signal, // Pass abort signal
         progress_callback: (progress: any) => {
           if (signal.aborted) throw new Error("Aborted");
@@ -366,22 +367,36 @@ Example: <start_function_call>call:calculate{expression:<escape>5*12<escape>}<en
     // By passing text to the pipeline, we let it handle tokenization/generation internally.
     let promptText = "";
     try {
-        const inputIds = inputs.input_ids;
+        const inputIds = inputs?.input_ids;
+        
+        if (!inputIds) {
+            throw new Error("apply_chat_template did not return input_ids. Check tokenizer_config.json has a valid chat_template field.");
+        }
+        
         let tokenData;
-        if (inputIds.getData) {
+        if (typeof inputIds.getData === 'function') {
              tokenData = await inputIds.getData();
-        } else {
+        } else if (inputIds.data !== undefined) {
              tokenData = inputIds.data;
+        } else if (Array.isArray(inputIds)) {
+             // Direct array of token IDs
+             tokenData = inputIds;
+        } else if (inputIds.tolist) {
+             // Tensor with tolist method
+             tokenData = inputIds.tolist();
+        } else {
+             throw new Error(`Unexpected input_ids format: ${typeof inputIds}, keys: ${Object.keys(inputIds || {}).join(', ')}`);
         }
         
         // Handle BigInt64Array (WASM/WebGPU) mapping to number[]
         const tokensArray = Array.isArray(tokenData) 
-            ? tokenData 
+            ? tokenData.flat() // Flatten in case of nested arrays
             : Array.from(tokenData).map(Number);
             
         promptText = this.tokenizer.decode(tokensArray, { skip_special_tokens: false });
     } catch (e) {
-        console.warn("Failed to decode prompt inputs, falling back to empty string:", e);
+        console.error("Failed to decode prompt inputs:", e);
+        throw new Error(`Failed to prepare prompt for generation: ${e instanceof Error ? e.message : String(e)}`);
     }
     
     // Use the pipeline directly with text

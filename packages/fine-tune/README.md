@@ -112,8 +112,9 @@ After running the pipeline:
 ```
 working/
 ├── fused-model/        # MLX model with adapters merged
-├── onnx-model/         # ONNX model (FP32, ~1.6GB)
-└── onnx-model-fp16/    # ONNX model (FP16, ~832MB) ← Use this!
+├── onnx-model/           # ONNX model (FP32, ~1.6GB)
+├── onnx-model-fp16/      # ONNX model (FP16, ~832MB)
+└── onnx-model-q4-webgpu/ # ONNX model (Q4-WebGPU, ~800MB) ← Use this!
 ```
 
 ## Quantization Options
@@ -121,8 +122,9 @@ working/
 | Type | Size | Quality | Browser Compatible |
 |------|------|---------|-------------------|
 | FP32 | 1.6GB | Best | ⚠️ Too large |
-| **FP16** | **832MB** | **Excellent** | **✅ Recommended** |
+| FP16 | 832MB | Excellent | ✅ Good |
 | INT8 | 417MB | Degrades | ❌ Not recommended |
+| **Q4-WebGPU** | **~800MB** | **Good** | **✅ Recommended for WebGPU** |
 
 ## Troubleshooting
 
@@ -131,8 +133,8 @@ working/
 | `npm run setup` fails | Run manually: `python3 -m venv python/.venv && source python/.venv/bin/activate && pip install -r python/requirements.txt` |
 | MLX not found | Ensure you're on Apple Silicon. MLX only works on M1/M2/M3 Macs. |
 | ONNX export fails | Install: `pip install optimum onnxruntime` |
-| Model too large | Use `--quantize` flag (FP16, ~832MB) |
-| Browser can't load | Ensure `onnx/` subdirectory structure exists |
+| Model too large | Use `--quantize` flag (Q4-WebGPU, ~800MB) |
+| Browser can't load | Ensure `onnx/` subdirectory structure and `tokenizer_config.json` has chat_template |
 
 ## File Structure
 
