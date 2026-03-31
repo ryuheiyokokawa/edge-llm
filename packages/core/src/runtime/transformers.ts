@@ -170,9 +170,12 @@ export class TransformersRuntime extends BaseRuntime {
       );
       this.lastProgressMap.clear(); // Reset for pipeline
       const device = this.config?.device || "webgpu";
+      const dtype = this.config?.dtype;
       this.log("[Transformers.js] Using device:", device);
+      if (dtype) this.log("[Transformers.js] Using dtype:", dtype);
       const pipelineOptions: any = {
         device,
+        ...(dtype && { dtype }),
         signal, // Pass abort signal
         progress_callback: (progress: any) => {
           if (signal.aborted) throw new Error("Aborted");

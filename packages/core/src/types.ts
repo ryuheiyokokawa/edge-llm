@@ -122,7 +122,8 @@ export interface RuntimeConfig {
   };
   /** Device for Transformers.js runtime: "webgpu" (default) or "wasm" */
   device?: "webgpu" | "wasm";
-  toolCallFormat?: ToolCallFormat;
+  /** Quantization dtype for Transformers.js models */
+  dtype?: "fp32" | "fp16" | "q8" | "q4" | "q4f16";  toolCallFormat?: ToolCallFormat;
   signal?: AbortSignal; // Pass an abort signal for cancellation
   performance?: {
     maxConcurrentInference?: number;
