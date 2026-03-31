@@ -169,10 +169,10 @@ export class TransformersRuntime extends BaseRuntime {
         "[Transformers.js] Loading pipeline (this may download the model)..."
       );
       this.lastProgressMap.clear(); // Reset for pipeline
+      const device = this.config?.device || "webgpu";
+      this.log("[Transformers.js] Using device:", device);
       const pipelineOptions: any = {
-        // device: "wasm", // Removed to allow WebGPU (auto-detect)
-        //dtype: "fp32", // Switch to full precision (1.1GB) for maximum fidelity
-        device: "webgpu", // Use WebGPU for maximum performance
+        device,
         signal, // Pass abort signal
         progress_callback: (progress: any) => {
           if (signal.aborted) throw new Error("Aborted");

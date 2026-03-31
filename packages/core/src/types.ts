@@ -120,6 +120,8 @@ export interface RuntimeConfig {
     transformers?: string;
     api?: string;
   };
+  /** Device for Transformers.js runtime: "webgpu" (default) or "wasm" */
+  device?: "webgpu" | "wasm";
   toolCallFormat?: ToolCallFormat;
   signal?: AbortSignal; // Pass an abort signal for cancellation
   performance?: {
